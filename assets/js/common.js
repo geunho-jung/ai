@@ -8,7 +8,13 @@
   AI.$ = (sel, root = document) => root.querySelector(sel);
   AI.$$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
   AI.sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  AI.nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
+  // 화면 갱신 한 번 기다리기. 탭이 가려져 있으면 requestAnimationFrame이 멈추므로 setTimeout으로도 넘어가게 함
+  AI.nextFrame = () => new Promise((r) => {
+    let done = false;
+    const go = () => { if (!done) { done = true; r(); } };
+    requestAnimationFrame(go);
+    setTimeout(go, 50);
+  });
 
   /* ---------- 사진 열기 ---------- */
   // 사진 파일(Blob)을 열어 긴 쪽이 maxSide 이하인 캔버스로 돌려줌
