@@ -18,8 +18,6 @@
         <button data-s="scene" type="button">풍경 사진</button>
       </div>
       <p class="small" id="styleHelp" style="margin:8px 0 0"></p>
-      <label class="check"><input type="checkbox" id="toon"> 만화 효과 더하기 (윤곽선 · 색 단순하게)</label>
-      <p class="small" style="margin:4px 0 0 24px">AI 결과 위에 영상처리로 검은 윤곽선을 긋고 밝기를 몇 단계로 나눠요.</p>
     </section>
     <section>
       <h2>사진</h2>
@@ -34,7 +32,6 @@
         <li><b>인물용</b>: 얼굴 사진과 만화풍 얼굴 그림으로 학습해서, 얼굴을 만화 주인공처럼 바꿔요.</li>
         <li><b>풍경용</b>: 일본 애니메이션 영화 장면으로 학습해서, 거리 · 하늘 · 나무를 애니메이션 배경처럼 바꿔요.</li>
         <li>사진의 구도는 그대로 두고 <b>색과 선, 질감</b>만 바꾸는 것이 핵심이에요.</li>
-        <li><b>만화 효과</b>는 AI가 아니라 전통적인 영상처리예요. 밝기가 급하게 바뀌는 경계를 찾아 선을 긋고(경계 검출), 밝기를 7단계로 나눠요.</li>
       </ul>
     </section>
   </aside>
@@ -90,7 +87,7 @@
       const res = (await m.run(feeds))[m.outputNames[0]];
       ms = performance.now() - t0;
       const [, , H, W] = res.dims, N = W * H, y = res.data;
-      aiOut = document.createElement("canvas"); aiOut.width = W; aiOut.height = H;
+      aiOut = document.createElement("canvas"); aiOut.width = W; aiOut.height = H; aiOut.dataset.id = Date.now();
       const og = aiOut.getContext("2d"), oi = og.createImageData(W, H);
       for (let i = 0; i < N; i++) {
         for (let k = 0; k < 3; k++) oi.data[i * 4 + k] = Math.max(0, Math.min(255, Math.round((y[k * N + i] + 1) * 127.5)));
@@ -142,12 +139,14 @@
   }
   function show() {
     if (!aiOut) return;
-    const toon = $("#toon").checked;
-    out = toon ? toonify(aiOut) : aiOut;
-    cmp.set(input, out, "원본", NAMES[style] + (toon ? " + 만화 효과" : ""));
-    $("#status").innerHTML = `<span class="pill accent">${NAMES[style]}${toon ? " + 만화 효과" : ""}</span><span class="pill">AI ${(ms / 1000).toFixed(1)}초</span>`;
+    // 풍경은 AI 결과만으로는 만화 느낌이 약해서, 윤곽선 · 색 단순화(영상처리)를 자동으로 더함
+    if (!out || out.dataset.src !== String(aiOut.dataset.id)) {
+      out = style === "scene" ? toonify(aiOut) : aiOut;
+      out.dataset.src = String(aiOut.dataset.id);
+    }
+    cmp.set(input, out, "원본", NAMES[style]);
+    $("#status").innerHTML = `<span class="pill accent">${NAMES[style]}</span><span class="pill">${(ms / 1000).toFixed(1)}초</span>`;
   }
-  $("#toon").addEventListener("change", show);
 
   AI.$$("#styleSel button").forEach((b) => b.addEventListener("click", () => {
     AI.$$("#styleSel button").forEach((x) => x.classList.toggle("on", x === b));
@@ -157,7 +156,6 @@
     style = s;
     AI.$$("#styleSel button").forEach((x) => x.classList.toggle("on", x.dataset.s === s));
     $("#styleHelp").textContent = HELP[s];
-    $("#toon").checked = s === "scene"; // 풍경은 AI 결과만으로는 만화 느낌이 약해서 기본으로 켬
   }
   setStyle("face");
   $("#save").addEventListener("click", () => out && AI.download(out, "AI_만화.png"));
