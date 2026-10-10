@@ -8,7 +8,7 @@
 <style>
   .step { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 12.5px; margin-right: 7px; vertical-align: 1px; }
   .opt { font-weight: 400; font-size: 13px; }
-  #preView { image-rendering: auto; }
+  #preView { image-rendering: auto; max-height: none; }
 </style>
 </head>
 <body>
@@ -32,8 +32,8 @@
     </section>
     <section>
       <h2><span class="step">3</span>AI로 선명하게 만들기</h2>
-      <button class="btn block" id="go" type="button" disabled>AI로 4배 키우기</button>
-      <p class="small" style="margin:8px 0 0">가로 · 세로를 4배로 키우면서 흐린 부분을 선명하게 다시 그려요.</p>
+      <button class="btn block" id="go" type="button" disabled>AI 적용하기</button>
+      <p class="small" style="margin:8px 0 0">AI가 가로 · 세로를 4배로 키우면서 흐린 부분을 선명하게 다시 그려요.</p>
     </section>
     <section class="about">
       <h2>이 기술은</h2>
@@ -122,12 +122,16 @@
     shrunk = Math.max(src.width, src.height) > MAX;
     small = fit(src, MAX);
     if (BLUR[blur]) small = await jpeg(fit(src, BLUR[blur].side), BLUR[blur].q);
-    plain = resize(small, small.width * 4, small.height * 4); // 그냥 4배 확대
+    // 화면에 보이는 크기는 '그대로'일 때와 같게 (흐리게 만들어도 크기는 그대로, 흐려진 것만 보이게)
+    const base = fit(src, MAX);
+    plain = resize(small, base.width * 4, base.height * 4); // 그냥 확대
     aiOut = null;
     const v = $("#preView");
     v.width = plain.width; v.height = plain.height;
     v.getContext("2d").drawImage(plain, 0, 0);
     $("#empty").hidden = true; $("#out").hidden = true; $("#pre").hidden = false;
+    const avail = $("#pre").clientWidth || 800, vh = window.innerHeight * 0.68;
+    v.style.width = Math.min(avail, plain.width * (vh / plain.height)) + "px";
     $("#preInfo").innerHTML = `AI에 넣을 사진이에요 (${small.width}×${small.height}).` +
       (shrunk && !BLUR[blur] ? " 사진이 커서 긴 쪽을 " + MAX + "px로 줄였어요." : "") + "<br>왼쪽 <b>3</b>번 버튼을 누르세요.";
     $("#status").innerHTML = `<span class="pill">${small.width}×${small.height}</span>`;
@@ -140,7 +144,7 @@
     err.hide();
     try {
       const m = await getModel();
-      loader.show("AI가 사진을 키우는 중", `${small.width}×${small.height} → ${small.width * 4}×${small.height * 4}`);
+      loader.show("AI가 사진을 선명하게 만드는 중", `${small.width}×${small.height} → ${small.width * 4}×${small.height * 4}`);
       await AI.nextFrame(); await AI.sleep(30);
       const t0 = performance.now();
       aiOut = await esrgan(m, small);
@@ -154,7 +158,7 @@
       err.show("실행 중 문제가 생겼어요: " + (e.message || e));
     }
   }
-  const show = () => aiOut && cmp.set(plain, aiOut, "그냥 4배 확대", "AI로 4배 키움");
+  const show = () => aiOut && cmp.set(plain, aiOut.width === plain.width ? aiOut : resize(aiOut, plain.width, plain.height), "그냥 확대", "AI 적용");
   AI.$$("#blurSel button").forEach((b) => b.addEventListener("click", () => {
     AI.$$("#blurSel button").forEach((x) => x.classList.toggle("on", x === b));
     blur = +b.dataset.k; prepare();

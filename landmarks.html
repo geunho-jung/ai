@@ -6,6 +6,11 @@
 <title>얼굴·몸 점 찍기</title>
 <link rel="stylesheet" href="assets/css/style.css">
 <style>
+  .lmrow { display: flex; gap: 14px; justify-content: center; align-items: flex-start; }
+  .lmrow canvas.view { margin: 0; min-width: 0; max-width: 100%; }
+  #zoomBox { flex: 0 0 auto; width: min(320px, 38%); text-align: center; }
+  #zoom { width: 100%; border-radius: 8px; display: block; margin-bottom: 4px; }
+  .lmrow:has(#zoomBox:not([hidden])) canvas.view { max-width: calc(62% - 14px); }
   .meters { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 14px; }
   .meter { background: #faf9f6; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
   .meter span { font-size: 13px; color: var(--muted); font-weight: 700; }
@@ -53,7 +58,10 @@
     <div class="stage" id="stage">
       <div class="status" id="status"></div>
       <div class="empty" id="empty">예제 사진을 눌러 시작하세요</div>
-      <canvas class="view" id="view" hidden></canvas>
+      <div class="lmrow">
+        <canvas class="view" id="view" hidden></canvas>
+        <div id="zoomBox" hidden><canvas id="zoom"></canvas><div class="small">얼굴 확대</div></div>
+      </div>
       <div class="meters" id="meters"></div>
     </div>
   </section>
@@ -149,6 +157,39 @@ function meters(list) {
     `<div class="meter"><span>${name}</span><b>${val}</b>${pct != null ? `<i><u style="width:${Math.round(pct * 100)}%"></u></i>` : ""}</div>`).join("");
 }
 
+// 얼굴 점 그리기 (원래 사진 · 확대 그림에 같이 사용)
+function drawFace(g, du, lm, W, H, lw) {
+  if (style === "mesh") {
+    du.drawConnectors(lm, FaceLandmarker.FACE_LANDMARKS_TESSELATION, { color: "rgba(255,255,255,0.6)", lineWidth: lw });
+    du.drawConnectors(lm, FaceLandmarker.FACE_LANDMARKS_FACE_OVAL, { color: "#ee6b55", lineWidth: lw * 2 });
+  } else {
+    const line = (c, col) => du.drawConnectors(lm, c, { color: col, lineWidth: lw * 3 });
+    line(FaceLandmarker.FACE_LANDMARKS_LEFT_EYE, "#3b82c4"); line(FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE, "#3b82c4");
+    line(FaceLandmarker.FACE_LANDMARKS_LEFT_EYEBROW, "#8e5bd0"); line(FaceLandmarker.FACE_LANDMARKS_RIGHT_EYEBROW, "#8e5bd0");
+    line(FaceLandmarker.FACE_LANDMARKS_LIPS, "#ee6b55");
+    g.fillStyle = "#e0a020"; g.beginPath(); g.arc(lm[1].x * W, lm[1].y * H, lw * 3, 0, 7); g.fill();
+  }
+}
+// 가장 큰 얼굴을 잘라서 크게 보여 주기
+function drawZoom(img, faces) {
+  const box = $("#zoomBox");
+  if (!faces.length) { box.hidden = true; return; }
+  const W = img.width, H = img.height;
+  const size = (lm) => Math.max(...lm.map((q) => q.x)) - Math.min(...lm.map((q) => q.x));
+  const lm = faces.reduce((a, b) => (size(b) > size(a) ? b : a));
+  const xs = lm.map((q) => q.x * W), ys = lm.map((q) => q.y * H);
+  const side = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) * 1.35;
+  const x0 = (Math.min(...xs) + Math.max(...xs)) / 2 - side / 2, y0 = (Math.min(...ys) + Math.max(...ys)) / 2 - side / 2;
+  const Z = 480, z = $("#zoom"), zg = z.getContext("2d");
+  z.width = z.height = Z;
+  zg.fillStyle = "#000"; zg.fillRect(0, 0, Z, Z);
+  zg.imageSmoothingQuality = "high";
+  zg.drawImage(img, x0, y0, side, side, 0, 0, Z, Z);
+  const mapped = lm.map((q) => ({ x: (q.x * W - x0) / side, y: (q.y * H - y0) / side, z: q.z }));
+  drawFace(zg, new DrawingUtils(zg), mapped, Z, Z, 1.1);
+  box.hidden = false;
+}
+
 function drawResult(img, res) {
   view.width = img.width; view.height = img.height;
   ctx.drawImage(img, 0, 0);
@@ -160,18 +201,9 @@ function drawResult(img, res) {
     faces.forEach((lm) => {
       // 얼굴 크기에 맞춰 선 굵기 정하기 (작은 얼굴은 가는 선)
       const fw = (Math.max(...lm.map((q) => q.x)) - Math.min(...lm.map((q) => q.x))) * W;
-      const lw = Math.max(0.6, Math.min(3, fw / 160));
-      if (style === "mesh") {
-        du.drawConnectors(lm, FaceLandmarker.FACE_LANDMARKS_TESSELATION, { color: "rgba(255,255,255,0.55)", lineWidth: lw });
-        du.drawConnectors(lm, FaceLandmarker.FACE_LANDMARKS_FACE_OVAL, { color: "#ee6b55", lineWidth: lw * 2 });
-      } else {
-        const line = (c, col) => du.drawConnectors(lm, c, { color: col, lineWidth: lw * 3 });
-        line(FaceLandmarker.FACE_LANDMARKS_LEFT_EYE, "#3b82c4"); line(FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE, "#3b82c4");
-        line(FaceLandmarker.FACE_LANDMARKS_LEFT_EYEBROW, "#8e5bd0"); line(FaceLandmarker.FACE_LANDMARKS_RIGHT_EYEBROW, "#8e5bd0");
-        line(FaceLandmarker.FACE_LANDMARKS_LIPS, "#ee6b55");
-        ctx.fillStyle = "#e0a020"; ctx.beginPath(); ctx.arc(lm[1].x * W, lm[1].y * H, lw * 3, 0, 7); ctx.fill();
-      }
+      drawFace(ctx, du, lm, W, H, Math.max(0.6, Math.min(3, fw / 160)));
     });
+    drawZoom(img, faces);
     info.push(["찾은 얼굴", faces.length + "개"]);
     const bs = res.faceBlendshapes && res.faceBlendshapes[0];
     if (bs) {
@@ -180,6 +212,7 @@ function drawResult(img, res) {
       info.push(["웃는 정도", AI.pct(smile), smile], ["입 벌린 정도", AI.pct(jaw), jaw], ["눈 감은 정도", AI.pct(blink), blink]);
     }
   } else {
+    $("#zoomBox").hidden = true;
     const ps = res.landmarks || [];
     ps.forEach((lm, i) => {
       du.drawConnectors(lm, PoseLandmarker.POSE_CONNECTIONS, { color: AI.color(i), lineWidth: lw * 3 });

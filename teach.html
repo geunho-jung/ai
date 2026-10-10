@@ -15,18 +15,20 @@
   .cls h3 { margin: 0 0 8px; font-size: 16px; font-weight: 800; display: flex; justify-content: space-between; align-items: baseline; }
   .cls h3 span { font-size: 13px; color: var(--muted); font-weight: 700; }
   .thumbs { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; }
-  .thumbs img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; display: block; transition: .2s; }
-  .thumbs img.off { opacity: .15; filter: grayscale(1); }
+  .tile { display: block; width: 100%; aspect-ratio: 1; background-repeat: no-repeat; background-color: var(--soft); }
+  .thumbs .tile { border-radius: 4px; transition: .2s; }
+  .thumbs .tile.off { opacity: .15; filter: grayscale(1); }
   .card h3 .sub { font-size: 13.5px; color: var(--muted); font-weight: 700; margin-left: 8px; }
   .score { font-size: 30px; font-weight: 800; color: var(--accent-dark); line-height: 1.2; }
-  .tests { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; margin-top: 8px; }
+  .tests { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; margin-top: 8px; }
   .tests figure { margin: 0; }
-  .tests img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; display: block; border: 3px solid #2f9e6d; }
-  .tests figure.bad img { border-color: var(--accent); }
-  .tests figcaption { font-size: 13.5px; font-weight: 800; margin-top: 4px; color: #2f7d58; }
+  .tests .tile { border-radius: 8px; border: 3px solid #2f9e6d; background-origin: border-box; }
+  .tests figure.bad .tile { border-color: var(--accent); }
+  .tests figcaption { font-size: 13.5px; font-weight: 800; margin-top: 4px; color: #2f7d58; white-space: nowrap; }
   .tests figure.bad figcaption { color: var(--accent-dark); }
   .tests figcaption span { font-weight: 700; color: var(--muted); margin-left: 4px; }
   .subh { font-size: 14px; font-weight: 800; color: var(--muted); margin: 14px 0 2px; }
+  .subh .note { font-weight: 400; font-size: 13px; margin-left: 6px; }
   .mine { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
   @media (max-width: 1000px) { .mine { grid-template-columns: 1fr; } }
   #mineView { display: block; max-height: 240px; max-width: 100%; border-radius: 8px; margin: 10px auto 0; }
@@ -152,7 +154,8 @@
     if (featCache[it.key]) return Promise.resolve(featCache[it.key]);
     if (!pending[it.key]) pending[it.key] = queue = queue.then(async () => {
       if (!it.key.startsWith(setName)) { delete pending[it.key]; return null; } // 다른 데이터로 바꿨으면 건너뜀
-      if (!featCache[it.key]) featCache[it.key] = await computeFeat(it.canvas);
+      await AI.sleep(0); // 한 장마다 화면이 멈추지 않게 잠깐 쉼 (안 쉬면 계산이 끝날 때까지 클릭이 먹통)
+      if (!featCache[it.key]) featCache[it.key] = await computeFeat(it.canvas());
       updatePrep();
       return featCache[it.key];
     });
@@ -165,17 +168,21 @@
     $("#prep").textContent = done < all.length ? `사진 미리 살펴보는 중 ${done} / ${all.length}` : "";
   }
 
-  /* 사진 묶음(한 장에 100장)에서 224×224 사진 잘라 쓰기 : 앞 20장은 시험용, 나머지 80장은 학습용 */
-  const sprites = {};
+  /* 사진 묶음(한 장에 100장) : 앞 20장은 시험용, 나머지 80장은 학습용
+     화면에는 묶음 그림을 그대로 잘라 보여 주고(빠름), AI에 넣을 때만 224×224로 잘라 씀 */
+  const sprites = {}; // 이름 → Promise<canvas>
+  const spriteOf = (file) => (sprites[file] = sprites[file] || AI.urlToCanvas(DIR + file, 99999));
   async function loadSet(name) {
-    const T = SETS.tile, C = SETS.cols;
+    const T = SETS.tile, C = SETS.cols, R = Math.ceil((SETS.test + SETS.train) / C);
     return Promise.all(SETS.sets[name].map(async (cls, ci) => {
-      const key = name + ci;
-      if (!sprites[key]) sprites[key] = await AI.urlToCanvas(DIR + cls.sprite, 99999);
+      const sp = await spriteOf(cls.sprite);
       const items = Array.from({ length: SETS.test + SETS.train }, (_, i) => {
-        const c = document.createElement("canvas"); c.width = T; c.height = T;
-        c.getContext("2d").drawImage(sprites[key], (i % C) * T, Math.floor(i / C) * T, T, T, 0, 0, T, T);
-        return { key: `${key}-${i}`, canvas: c, url: c.toDataURL("image/jpeg", 0.8) };
+        const col = i % C, row = Math.floor(i / C);
+        return {
+          key: `${name}${ci}-${i}`,
+          css: `background-image:url('${DIR + cls.sprite}');background-position:${(col / (C - 1)) * 100}% ${(row / (R - 1)) * 100}%;background-size:${C * 100}% ${R * 100}%`,
+          canvas() { const c = document.createElement("canvas"); c.width = T; c.height = T; c.getContext("2d").drawImage(sp, col * T, row * T, T, T, 0, 0, T, T); return c; },
+        };
       });
       return { name: cls.name, try: cls.try, test: items.slice(0, SETS.test), train: items.slice(SETS.test) };
     }));
@@ -184,7 +191,7 @@
   function drawClasses() {
     if (!data) return;
     $("#classes").innerHTML = data.map((c) => `<div class="cls"><h3>${c.name}<span>학습 사진 ${nTrain}장</span></h3>
-        <div class="thumbs">${c.train.map((f, i) => `<img src="${f.url}" class="${i < nTrain ? "" : "off"}" alt="">`).join("")}</div></div>`).join("");
+        <div class="thumbs">${c.train.map((f, i) => `<i class="tile ${i < nTrain ? "" : "off"}" style="${f.css}"></i>`).join("")}</div></div>`).join("");
   }
   function resetResults() {
     clf = null;
@@ -278,11 +285,11 @@
           (best === ci ? right : wrong).push({ f, said: data[best].name, p: probs[best] });
         }
       }
-      const fig = (r, ok) => `<figure class="${ok ? "" : "bad"}"><img src="${r.f.url}" alt=""><figcaption>${ok ? "맞음" : "틀림"}: ${r.said}<span>${AI.pct(r.p)}</span></figcaption></figure>`;
+      const fig = (r, ok) => `<figure class="${ok ? "" : "bad"}"><i class="tile" style="${r.f.css}"></i><figcaption>${ok ? "맞음" : "틀림"}: ${r.said}<span>${AI.pct(r.p)}</span></figcaption></figure>`;
       const ok = right.length;
       $("#score").textContent = `${total}장 중 ${ok}장 맞힘 · ${Math.round((ok / total) * 100)}점`;
       $("#testSub").textContent = `종류마다 ${nTrain}장 학습`;
-      $("#wrongTitle").textContent = wrong.length ? `틀린 사진 ${wrong.length}장` : "틀린 사진이 없어요!";
+      $("#wrongTitle").innerHTML = wrong.length ? `틀린 사진 ${wrong.length}장 <span class="note">사진 아래 글자는 AI가 답한 것이에요</span>` : "틀린 사진이 없어요!";
       $("#wrong").innerHTML = wrong.map((r) => fig(r, false)).join("");
       // 맞힌 사진은 종류마다 3장씩만
       $("#right").innerHTML = data.flatMap((c) => right.filter((r) => c.test.includes(r.f)).slice(0, 3)).map((r) => fig(r, true)).join("");
@@ -308,7 +315,7 @@
     mineFeat = await computeFeatQueued(c);
     showMine();
   };
-  const computeFeatQueued = (c) => (queue = queue.then(() => computeFeat(c)));
+  const computeFeatQueued = (c) => (queue = queue.then(async () => { await AI.sleep(0); return computeFeat(c); }));
   AI.setupPicker({ drop: $("#drop"), maxSide: 800, onImage: onMine, onError: (m) => err.show(m) });
   function setupTry() {
     const samples = data.flatMap((c) => c.try.map((f, j) => ({ src: DIR + f, label: `${c.name} 예시 ${j + 1}` })));
@@ -330,6 +337,7 @@
 
   try {
     SETS = await (await fetch(DIR + "sets.json")).json();
+    Object.values(SETS.sets).flat().forEach((c) => spriteOf(c.sprite)); // 두 데이터 사진을 미리 받아 둠
     loader.show("AI 모델 불러오는 중", "11MB", 0);
     await AI.loadModel(MODEL, (p) => loader.progress(p));
     loader.hide();

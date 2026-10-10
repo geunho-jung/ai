@@ -72,7 +72,8 @@
       loader.show("AI 모델 불러오는 중", "9MB", 0);
       const m = await AI.loadModel(url, (p) => loader.progress(p));
       // 긴 쪽을 정한 크기로, 가로 · 세로는 8의 배수로
-      const L = 512, r = Math.min(1, L / Math.max(src.width, src.height));
+      // 풍경은 작게 처리하면 결과가 뿌옇게 나와서 더 크게(768) 처리
+      const L = style === "scene" ? 768 : 512, r = Math.min(1, L / Math.max(src.width, src.height));
       const w = Math.max(64, Math.round((src.width * r) / 8) * 8), h = Math.max(64, Math.round((src.height * r) / 8) * 8);
       input = document.createElement("canvas"); input.width = w; input.height = h;
       const ig = input.getContext("2d", { willReadFrequently: true }); ig.imageSmoothingQuality = "high";
@@ -119,7 +120,7 @@
   AI.setupPicker({
     drop: $("#drop"), samplesEl: $("#samples"), maxSide: 1280,
     samples: [
-      { src: "assets/samples/cartoon/woman.jpg", label: "인물", style: "face" },
+      { src: "assets/samples/cartoon/fan.jpg", label: "응원하는 사람", style: "face" },
       { src: "assets/samples/cartoon/kids.jpg", label: "아이들", style: "face" },
       { src: "assets/samples/cartoon/lake.jpg", label: "호수와 산", style: "scene" },
       { src: "assets/samples/cartoon/venice.jpg", label: "베네치아 운하", style: "scene" },
