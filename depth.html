@@ -21,13 +21,7 @@
       <h2>보기</h2>
       <div class="tabs" id="mode">
         <button class="on" data-m="map" type="button">거리 지도</button>
-        <button data-m="near" type="button">가까운 것만</button>
         <button data-m="3d" type="button">3D 사진</button>
-      </div>
-      <div class="ctrl" id="nearCtrl" style="margin-top:12px" hidden>
-        <label>남길 거리 <b id="nearVal">40%</b></label>
-        <input type="range" id="near" min="5" max="95" step="5" value="40">
-        <div class="ends"><span>아주 가까운 것만</span><span>대부분</span></div>
       </div>
       <div class="ctrl" id="d3Ctrl" style="margin-top:12px" hidden>
         <label>입체감 <b id="d3Val">1.0</b></label>
@@ -40,6 +34,7 @@
             <li>마우스를 움직이면 <b>가까운 점은 많이, 먼 점은 조금</b> 옮겨서 다시 그려요.</li>
             <li>기차 창밖을 볼 때 가까운 나무는 빨리, 먼 산은 천천히 지나가는 것과 같은 원리(<b>시차</b>)라서 눈이 입체로 느껴요.</li>
             <li>그림은 그래픽카드(WebGL)가 1초에 수십 번 새로 그려요.</li>
+            <li>원래 사진에 없던 뒷부분을 새로 만들지는 않아요. 그래서 입체감을 키우면 물체 가장자리가 늘어나 보여요.</li>
           </ol>
         </div>
       </div>
@@ -69,7 +64,6 @@
       <div class="empty" id="empty">예제 사진을 눌러 시작하세요</div>
       <div id="out" hidden>
         <div id="cmp"></div>
-        <canvas class="view" id="nearView" hidden></canvas>
         <canvas id="gl" hidden></canvas>
         <div id="legendBox" style="max-width:420px;margin:12px auto 0">
           <div class="legend"></div>
@@ -156,27 +150,11 @@
   function render() {
     if (!depth) return;
     $("#cmp").hidden = mode !== "map";
-    $("#nearView").hidden = mode !== "near";
     $("#gl").hidden = mode !== "3d";
     $("#legendBox").hidden = mode !== "map";
-    $("#nearCtrl").hidden = mode !== "near";
     $("#d3Ctrl").hidden = mode !== "3d";
     if (mode === "map") cmp.set(src, colorMap, "사진", "거리 지도");
-    else if (mode === "near") drawNear();
     else start3d();
-  }
-
-  // 가까운 곳만 남기고 나머지는 흐리고 어둡게
-  function drawNear() {
-    const th = 1 - +$("#near").value / 100, w = src.width, h = src.height;
-    const v = $("#nearView"); v.width = w; v.height = h;
-    const g = v.getContext("2d");
-    g.filter = "grayscale(1) brightness(0.45) blur(2px)";
-    g.drawImage(src, 0, 0); g.filter = "none";
-    const fg = AI.copyCanvas(src), fgc = fg.getContext("2d"), im = fgc.getImageData(0, 0, w, h);
-    for (let i = 0; i < depth.length; i++) if (depth[i] < th) im.data[i * 4 + 3] = 0;
-    fgc.putImageData(im, 0, 0);
-    g.drawImage(fg, 0, 0);
   }
 
   /* 3D 사진 : 가까운 곳은 많이, 먼 곳은 조금 움직여서 입체처럼 보이게 (WebGL) */
@@ -232,7 +210,6 @@
     AI.$$("#mode button").forEach((x) => x.classList.toggle("on", x === b));
     mode = b.dataset.m; render();
   }));
-  $("#near").addEventListener("input", () => { $("#nearVal").textContent = $("#near").value + "%"; drawNear(); });
   $("#d3").addEventListener("input", () => ($("#d3Val").textContent = (+$("#d3").value).toFixed(1)));
   window.addEventListener("resize", () => depth && render());
 
