@@ -1,1 +1,44 @@
-{"tile": 224, "sets": {"animal": {"개": 13, "고양잇과": 13, "새": 13}, "vehicle": {"자동차": 13, "배": 13, "하늘을 나는 것": 8}, "food": {"과일": 10, "채소": 13, "음식": 13}}}
+{
+ "tile": 224,
+ "cols": 10,
+ "test": 20,
+ "train": 80,
+ "sets": {
+  "pet": [
+   {
+    "name": "고양이",
+    "sprite": "pet_0.jpg",
+    "try": [
+     "pet_0_try0.jpg",
+     "pet_0_try1.jpg"
+    ]
+   },
+   {
+    "name": "강아지",
+    "sprite": "pet_1.jpg",
+    "try": [
+     "pet_1_try0.jpg",
+     "pet_1_try1.jpg"
+    ]
+   }
+  ],
+  "xray": [
+   {
+    "name": "정상",
+    "sprite": "xray_0.jpg",
+    "try": [
+     "xray_0_try0.jpg",
+     "xray_0_try1.jpg"
+    ]
+   },
+   {
+    "name": "폐렴",
+    "sprite": "xray_1.jpg",
+    "try": [
+     "xray_1_try0.jpg",
+     "xray_1_try1.jpg"
+    ]
+   }
+  ]
+ }
+}

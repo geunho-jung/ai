@@ -5,20 +5,21 @@ AI 체험 - 고등학생 전공체험용 브라우저 실습
 1. 주제 9개 (첫 화면 순서)
 ==================================================
  사물 찾기               detect.html     YOLO11n 객체 검출 (수업 1_3 · 1_5주차)
- 사진을 만화로           cartoon.html    AnimeGANv2 이미지 변환 (새 주제)
+ 사진을 만화로           cartoon.html    AnimeGANv2 그림체 바꾸기 (인물 사진용 / 풍경 사진용)
  흑백 사진을 컬러로      colorize.html   DeOldify 컬러화 (6주차 컬러화와 같은 주제)
  얼굴·몸 점 찍기         landmarks.html  MediaPipe 얼굴 · 자세 랜드마크 (9주차)
- 사진 속 거리 알아내기   depth.html      MiDaS 깊이 추정 + 3D 보기 (새 주제)
- 흐린 사진 선명하게      upscale.html    Real-ESRGAN 초해상도 (6주차)
+ 사진 속 거리 알아내기   depth.html      MiDaS 깊이 추정 + 3D 보기
+ 흐린 사진 선명하게      upscale.html    Real-ESRGAN 초해상도 (6주차) - ①사진 고르기 ②(선택)흐리게 ③AI로 4배
  이건 무엇일까?          classify.html   YOLO11n-cls 분류 + 가림 실험 (2_3주차)
- 나만의 AI 만들기        teach.html      전이학습: 준비된 사진(동물 · 탈것 · 음식)으로 분류기 학습 (새 주제)
+ 나만의 AI 만들기        teach.html      전이학습: 고양이 vs 강아지 / 폐 X-ray 정상 vs 폐렴, 학습하기 → 검증하기
  손글씨 숫자 AI 학습     mnist.html      MNIST 분류기 학습 (4주차)
 
 - 학생은 크롬(또는 엣지)에서 주소만 열면 됩니다. 설치 · 로그인 · 웹캠이 필요 없습니다.
 - AI는 학생 컴퓨터의 브라우저 안에서 돌아갑니다. 넣은 사진은 밖으로 나가지 않습니다.
-- 모델과 라이브러리가 모두 이 폴더 안에 있습니다.
+- 넣을 수 있는 사진: JPG, PNG, WEBP (GIF, BMP도 됨). 아이폰 HEIC 사진은 브라우저가 열지 못합니다.
+- 페이지마다 왼쪽 아래 '이 기술은'에 사용한 AI 모델과 원리를 짧게 적어 두었습니다.
 - 오늘 할 주제만 보이게 하려면 주소 끝에 ?t= 를 붙입니다.
-  예) https://아이디.github.io/ai-lab/?t=detect,cartoon,colorize
+  예) https://geunho-jung.github.io/ai/?t=detect,cartoon,colorize
 
 ==================================================
 2. 인터넷 주소로 올리기 (GitHub Pages, 무료)
@@ -28,7 +29,7 @@ AI 체험 - 고등학생 전공체험용 브라우저 실습
  1) github.com 로그인 → 오른쪽 위 + → New repository
     이름 예: ai-lab / Public → Create repository
  2) 한 번에 다 올리면 실패할 수 있어서 세 번에 나눠 올립니다.
-    (파일 63개, 약 167MB, 가장 큰 파일 17MB)
+    (파일 91개, 약 172MB, 가장 큰 파일 17MB)
     1차: "uploading an existing file" → models 폴더만 빼고 나머지 전부 끌어다 놓기 → Commit changes
     2차: 컴퓨터에서 models 안의 colorize 폴더를 잠시 바탕화면으로 옮겨 두고,
          저장소 첫 화면 Add file → Upload files → models 폴더를 끌어다 놓기 → Commit changes
@@ -36,6 +37,8 @@ AI 체험 - 고등학생 전공체험용 브라우저 실습
          → colorize 폴더를 끌어다 놓기 → Commit changes
  3) Settings → Pages → Branch: main, 폴더 / (root) → Save
  4) 1~2분 뒤 주소: https://아이디.github.io/ai-lab/
+ 5) 고친 파일만 다시 올릴 때: 저장소 첫 화면 Add file → Upload files → 같은 위치로 끌어다 놓기
+    (같은 이름은 새 파일로 바뀜). 바뀐 내용은 1~10분 뒤 반영되고, 내 컴퓨터에서는 Ctrl+F5로 새로고침.
 
 ==================================================
 3. 수업 전에 확인할 것
@@ -61,28 +64,38 @@ AI 체험 - 고등학생 전공체험용 브라우저 실습
 5. 확인한 것 · 확인하지 못한 것
 ==================================================
 확인함
- - GitHub Pages에 올린 파일 63개가 원본과 크기까지 모두 같음
- - 윈도우 노트북에서 9개 주제 모두 예제 사진으로 결과까지 실행, 오류 없음
- - 사물 찾기 · 분류: Colab(ultralytics) 결과와 같은 물체, 비슷한 신뢰도
- - 컬러화 · 거리 모델: 용량을 줄인 모델(가중치 8비트)과 원래 모델 결과 비교 → 차이 거의 없음
- - 나만의 AI 만들기: 학습 사진을 1장 → 3장 → 5장 → 전부로 늘리면 시험 점수가 오름
-   (동물 75→92→100→100%, 탈것 50→88→88→100%, 음식 56→56→67→67% · 음식은 과일과 채소가 헷갈려서 어려운 편)
+ - 9개 페이지 모두 예제 사진 4장씩 실행, 오류 없음 (헤드리스 크롬)
+ - 윈도우 노트북(GitHub Pages 주소)에서 9개 주제 실행 (이전 버전 기준)
+ - 사물 찾기 예제: 물체 14 · 21 · 5 · 13개 검출
+ - 얼굴 점 찍기: 전신 사진처럼 얼굴이 작으면 몸의 점으로 머리 위치를 찾아 다시 찾음.
+   단, 옆모습(요가 사진)은 얼굴을 찾지 못함 → 화면에 이유를 표시함
+ - 나만의 AI 만들기 검증 점수 (종류마다 5장 → 20장 → 80장 학습)
+     고양이 vs 강아지  90 → 95 → 100점
+     폐 X-ray          83 → 88 → 93점
  - 탭을 다른 곳으로 옮겨도 처리가 멈추지 않음
 
 확인하지 못함
  - 컴퓨터실 PC(학교 방화벽, 사양)에서의 실행
 
 ==================================================
-6. 모델 출처
+6. 모델 · 사진 출처
 ==================================================
  YOLO11n / YOLO11n-cls      Ultralytics 공식 가중치 → ONNX 변환 (AGPL-3.0)
  Real-ESRGAN general x4v3    공식 릴리스 → ONNX 변환 (BSD-3-Clause)
  DeOldify (artistic)         FaceFusion 배포 ONNX → 가중치 8비트로 줄임(255MB→64MB), 11MB씩 6조각 (MIT)
  AnimeGANv2                  bryandlee/animegan2-pytorch 가중치 → ONNX 변환 (MIT)
  MiDaS v2.1 small            공식 ONNX → 가중치 8비트로 줄임(67MB→17MB) (MIT)
- MediaPipe 얼굴 · 자세       Google 공식 모델과 같은 파일(크기 일치)을 npm 패키지에서 가져옴 (Apache-2.0)
-                             models/mediapipe 폴더가 없으면 구글 공식 주소에서 자동으로 받음
+ MediaPipe 얼굴 · 자세       Google 공식 모델과 같은 파일 (Apache-2.0)
  MNIST                       학습용 10,000장 + 확인용 2,000장
- 나만의 AI 사진              ImageNet 클래스별 예시 사진 모음(EliSchwartz/imagenet-sample-images)에서 109장 (3묶음)
- 예제 사진                   scikit-image, PyTorch Hub, Ultralytics, EasyOCR 예제, richzhang/colorization 예제
- 글꼴                        나눔스퀘어라운드 (네이버, OFL)
+
+ 예제 사진 (모두 공개 저장소의 예제 · 시험용 사진)
+  사물 찾기      AnimeGANv2 저장소(도시 거리), OpenPose 예제(COCO: 광장 · 부엌), Darknet 예제(해변)
+  만화           MediaPipe 예제(인물 · 아이들), AnimeGANv2 저장소(호수 · 베네치아)
+  컬러화         DDColor 시험 사진 - 미국 의회도서관 등 1900~1940년대 흑백 사진
+  얼굴·몸        TensorFlow.js 예제(요가), MMPose 예제(스키), OpenPose 예제(카메라), MediaPipe 예제(회사원)
+  거리           Depth-Anything-V2 예제
+  초해상도       Real-ESRGAN 저장소의 저화질 시험 사진
+  분류           ImageNet 예시 사진(EliSchwartz/imagenet-sample-images), Darknet 예제(독수리)
+  나만의 AI      Kaggle Dogs vs. Cats(laxmimerit/dog-cat-full-dataset)에서 220장
+                 소아 흉부 X-ray(Kermany 외, 2018, CC BY 4.0)에서 220장
+ 글꼴            나눔스퀘어라운드 (네이버, OFL)

@@ -14,7 +14,6 @@
     <section>
       <h2>사진</h2>
       <div id="picker"></div>
-      <p class="small" style="margin:10px 0 0">컬러 사진을 넣으면 흑백으로 바꾼 뒤 다시 색을 칠해서, 원래 색과 비교할 수 있어요.</p>
     </section>
     <section>
       <h2>조절</h2>
@@ -23,19 +22,17 @@
         <input type="range" id="sat" min="0" max="2" step="0.1" value="1">
         <div class="ends"><span>흑백</span><span>진하게</span></div>
       </div>
-      <div class="ctrl">
-        <label>AI가 보는 크기 <b id="sizeVal">256</b></label>
-        <input type="range" id="size" min="192" max="384" step="32" value="256">
-        <div class="ends"><span>빠름</span><span>자세히 (느림)</span></div>
-      </div>
     </section>
-    <section class="todo">
-      <h2>해 볼 것</h2>
-      <ol>
-        <li><span>기본</span>흑백 풍경 사진에 AI가 칠한 색 보기</li>
-        <li><span>응용</span>컬러 사진을 넣고 AI의 색과 원래 색 비교하기</li>
-        <li><span>심화</span>AI가 색을 틀리게 칠한 곳 찾기 (옷, 자동차 등)</li>
-      </ol>
+    <section class="about">
+      <h2>이 기술은</h2>
+      <div class="name">DeOldify</div>
+      <span class="field">생성 AI · 흑백 사진 컬러화</span>
+      <ul>
+        <li>컬러 사진을 일부러 흑백으로 만든 뒤, <b>원래 색을 맞히도록</b> 수많은 사진(ImageNet 약 100만 장)으로 학습했어요.</li>
+        <li>AI는 사진의 <b>밝기와 모양</b>만 보고 색을 상상해서 칠해요.</li>
+        <li>하늘 · 나무 · 피부처럼 색이 거의 정해진 것은 잘 맞히지만, 옷이나 자동차처럼 색이 여러 가지인 물체는 실제와 다를 수 있어요.</li>
+        <li>만든 사람: Jason Antic (2018)</li>
+      </ul>
     </section>
   </aside>
 
@@ -62,7 +59,7 @@
 <script src="assets/js/common.js"></script>
 <script>
 (async function () {
-  // DeOldify (artistic) : 흑백 사진 → 색 예측. 64MB 를 25MB 이하 3조각으로 나눠 둠
+  // DeOldify (artistic) : 흑백 사진 → 색 예측. 64MB 를 11MB 조각 6개로 나눠 둠 (GitHub 웹 업로드 제한)
   const MODEL = [0, 1, 2, 3, 4, 5].map((i) => "models/colorize/deoldify.part" + i);
   const $ = AI.$;
   $("#picker").innerHTML = AI.pickerHTML(` <a href="https://www.pexels.com/ko-kr/search/black%20and%20white/" target="_blank" rel="noopener">흑백 사진</a>`);
@@ -117,7 +114,7 @@
       }
       gg.putImageData(gi, 0, 0);
       // AI 에 넣기 (정사각형으로 줄인 흑백, 0~255)
-      const S = +$("#size").value;
+      const S = 256;
       const sq = document.createElement("canvas"); sq.width = S; sq.height = S;
       const sg = sq.getContext("2d", { willReadFrequently: true }); sg.imageSmoothingQuality = "high";
       sg.drawImage(gray, 0, 0, S, S);
@@ -174,18 +171,16 @@
     left = b.dataset.k; show();
   }));
   $("#sat").addEventListener("input", () => { $("#satVal").textContent = (+$("#sat").value).toFixed(1) + "배"; if (A) { compose(); show(); } });
-  let t = null;
-  $("#size").addEventListener("input", () => { $("#sizeVal").textContent = $("#size").value; clearTimeout(t); t = setTimeout(run, 400); });
   $("#save").addEventListener("click", () => out && AI.download(out, "AI_컬러.png"));
   window.addEventListener("resize", show);
 
   AI.setupPicker({
     drop: $("#drop"), samplesEl: $("#samples"), maxSide: 1024,
     samples: [
-      { src: "assets/samples/old_bw.jpg", label: "흑백 풍경 사진" },
-      { src: "assets/samples/coffee.jpg", label: "커피잔" },
-      { src: "assets/samples/astronaut.jpg", label: "우주비행사" },
-      { src: "assets/samples/cat.jpg", label: "고양이" },
+      { src: "assets/samples/colorize/street1910.jpg", label: "가로수 길 (1900년대)" },
+      { src: "assets/samples/colorize/city1915.jpg", label: "디트로이트 시내 (1915년)" },
+      { src: "assets/samples/colorize/trumpet1946.jpg", label: "루이 암스트롱 (1946년)" },
+      { src: "assets/samples/colorize/friends1919.jpg", label: "헬렌 켈러와 찰리 채플린 (1919년)" },
     ],
     onImage: async (c) => {
       src = c; left = "gray";

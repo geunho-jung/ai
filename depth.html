@@ -7,6 +7,8 @@
 <link rel="stylesheet" href="assets/css/style.css">
 <style>
   #gl { display: block; margin: 0 auto; border-radius: 8px; cursor: move; max-width: 100%; }
+  .how3d { margin-top: 12px; background: var(--soft); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; }
+  .how3d ol { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; color: #4a4e55; }
   .legend { height: 8px; border-radius: 99px; background: linear-gradient(90deg, #000004, #420a68, #932667, #dd513a, #fca50a, #fcffa4); margin-top: 10px; }
 </style>
 </head>
@@ -31,19 +33,32 @@
         <label>입체감 <b id="d3Val">1.0</b></label>
         <input type="range" id="d3" min="0.2" max="2.5" step="0.1" value="1">
         <p class="small" style="margin:6px 0 0">사진 위에서 마우스를 움직여 보세요.</p>
+        <div class="how3d">
+          <b>3D 사진은 이렇게 만들어요</b>
+          <ol>
+            <li>AI가 만든 <b>거리 지도</b>로 사진의 점마다 가까운지 먼지를 알아요.</li>
+            <li>마우스를 움직이면 <b>가까운 점은 많이, 먼 점은 조금</b> 옮겨서 다시 그려요.</li>
+            <li>기차 창밖을 볼 때 가까운 나무는 빨리, 먼 산은 천천히 지나가는 것과 같은 원리(<b>시차</b>)라서 눈이 입체로 느껴요.</li>
+            <li>그림은 그래픽카드(WebGL)가 1초에 수십 번 새로 그려요.</li>
+          </ol>
+        </div>
       </div>
     </section>
     <section>
       <h2>사진</h2>
       <div id="picker"></div>
     </section>
-    <section class="todo">
-      <h2>해 볼 것</h2>
-      <ol>
-        <li><span>기본</span>거리 지도에서 가장 가까운 곳과 먼 곳 찾기</li>
-        <li><span>응용</span>'가까운 것만'으로 앞에 있는 물체만 남기기</li>
-        <li><span>심화</span>그림, 거울, 사진 속 사진처럼 AI가 헷갈릴 만한 사진 넣어 보기</li>
-      </ol>
+    <section class="about">
+      <h2>이 기술은</h2>
+      <div class="name">MiDaS v2.1 small</div>
+      <span class="field">컴퓨터 비전 · 깊이 추정</span>
+      <ul>
+        <li>사진 <b>한 장</b>만 보고 각 부분이 가까운지 먼지를 알아내요. 사람이 한쪽 눈을 감고도 거리를 짐작하는 것과 비슷해요.</li>
+        <li>3D 영화 장면, 3D 스캔처럼 <b>거리 정보가 있는 여러 데이터</b>를 섞어서 학습했어요.</li>
+        <li>결과는 "몇 m"가 아니라 <b>어느 쪽이 더 가까운지</b>를 나타내는 상대적인 거리예요.</li>
+        <li>쓰이는 곳: 자율주행, 로봇, 스마트폰 인물 사진 배경 흐림</li>
+        <li>만든 곳: Intel (2019)</li>
+      </ul>
     </section>
   </aside>
 
@@ -62,7 +77,6 @@
         </div>
       </div>
     </div>
-    <p class="small" style="margin:10px 4px 0">AI는 사진 한 장만 보고 물체의 크기, 겹침, 원근 같은 단서로 거리를 추측해요. 실제 거리(미터)가 아니라 '어느 쪽이 더 가까운지'를 알려 줘요.</p>
   </section>
 </main>
 
@@ -225,10 +239,10 @@
   AI.setupPicker({
     drop: $("#drop"), samplesEl: $("#samples"), maxSide: 1024,
     samples: [
-      { src: "assets/samples/coffee.jpg", label: "커피잔" },
-      { src: "assets/samples/astronaut.jpg", label: "우주비행사" },
-      { src: "assets/samples/bus.jpg", label: "거리" },
-      { src: "assets/samples/old_bw.jpg", label: "풍경" },
+      { src: "assets/samples/depth/street.jpg", label: "거리" },
+      { src: "assets/samples/depth/bicycle.jpg", label: "자전거" },
+      { src: "assets/samples/depth/sunflower.jpg", label: "해바라기" },
+      { src: "assets/samples/depth/basket.jpg", label: "농구 골대" },
     ],
     onImage: async (c) => { src = c; await run(); },
     onError: (m) => err.show(m),

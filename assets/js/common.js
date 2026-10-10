@@ -151,8 +151,8 @@
   AI.pickerHTML = function (extra = "") {
     return `
       <div class="drop" id="drop"><b>사진 넣기</b>끌어다 놓기 · 클릭 · 복사 후 Ctrl+V</div>
-      <div class="samples" id="samples"></div>
-      <div class="links">무료 사진 <a href="https://www.pexels.com/ko-kr/" target="_blank" rel="noopener">Pexels</a> <a href="https://unsplash.com/ko" target="_blank" rel="noopener">Unsplash</a>${extra}</div>`;
+      <div class="links">무료 사진 <a href="https://www.pexels.com/ko-kr/" target="_blank" rel="noopener">Pexels</a> <a href="https://unsplash.com/ko" target="_blank" rel="noopener">Unsplash</a>${extra}<span class="fmt">JPG · PNG · WEBP</span></div>
+      <div class="samples" id="samples"></div>`;
   };
 
   /* ---------- 오류 · 로딩 표시 ---------- */

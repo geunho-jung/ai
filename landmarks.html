@@ -34,13 +34,17 @@
       <h2>사진</h2>
       <div id="picker"></div>
     </section>
-    <section class="todo">
-      <h2>해 볼 것</h2>
-      <ol>
-        <li><span>기본</span>얼굴과 몸에 점이 찍히는 것 확인하기</li>
-        <li><span>응용</span>웃는 얼굴 · 입 벌린 얼굴 사진을 넣고 숫자 비교하기</li>
-        <li><span>심화</span>옆모습 · 가린 얼굴 · 그림 속 얼굴도 찾는지 알아보기</li>
-      </ol>
+    <section class="about">
+      <h2>이 기술은</h2>
+      <div class="name">MediaPipe 얼굴 · 자세</div>
+      <span class="field">컴퓨터 비전 · 특징점 찾기</span>
+      <ul>
+        <li>두 단계로 동작해요. ① 먼저 얼굴(또는 사람)이 <b>어디 있는지</b> 찾고, ② 그 부분을 크게 보면서 <b>점</b>을 찍어요.</li>
+        <li><b>얼굴</b>: 점 478개. 점들의 위치로 웃음 · 입 벌림 · 눈 감음 같은 <b>표정 52가지</b>를 숫자로 계산해요.</li>
+        <li><b>몸</b>: 어깨 · 팔꿈치 · 무릎 등 관절 33개. 점 3개로 관절의 각도를 계산할 수 있어요.</li>
+        <li>쓰이는 곳: 운동 자세 코칭, 재활 치료, 카메라 얼굴 필터</li>
+        <li>만든 곳: Google</li>
+      </ul>
     </section>
   </aside>
 
@@ -70,10 +74,13 @@ const MODELS = {
   face: { file: "face_landmarker.task", url: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task", mb: 4 },
   pose: { file: "pose_landmarker_full.task", url: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task", mb: 9 },
 };
-const SAMPLES = {
-  face: [{ src: "assets/samples/astronaut.jpg", label: "우주비행사" }, { src: "assets/samples/bus.jpg", label: "거리의 사람들" }],
-  pose: [{ src: "assets/samples/bus.jpg", label: "거리의 사람들" }, { src: "assets/samples/astronaut.jpg", label: "우주비행사" }],
-};
+const SAMPLE_LIST = [
+  { src: "assets/samples/landmarks/office.jpg", label: "회사원" },
+  { src: "assets/samples/landmarks/camera.jpg", label: "카메라 든 사람" },
+  { src: "assets/samples/landmarks/ski.jpg", label: "스키 (전신)" },
+  { src: "assets/samples/landmarks/yoga.jpg", label: "요가 (전신 · 옆모습)" },
+];
+const SAMPLES = { face: SAMPLE_LIST, pose: SAMPLE_LIST };
 let fileset = null, kind = "face", style = "mesh", src = null;
 const tasks = {};
 
@@ -106,6 +113,32 @@ async function getTask(k, mode) {
   return T.t;
 }
 
+// 전신 사진처럼 얼굴이 작으면 바로 못 찾음 → 몸의 점으로 머리 위치를 찾고, 그 부분을 크게 잘라 다시 찾기
+async function faceFromBody(faceTask, img) {
+  const poseTask = await getTask("pose", "IMAGE");
+  const poses = poseTask.detect(img).landmarks || [];
+  const W = img.width, H = img.height;
+  const out = { faceLandmarks: [], faceBlendshapes: [] };
+  for (const p of poses) {
+    const head = p.slice(0, 11).map((q) => [q.x * W, q.y * H]);
+    const xs = head.map((q) => q[0]), ys = head.map((q) => q[1]);
+    const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+    const shoulder = Math.hypot((p[11].x - p[12].x) * W, (p[11].y - p[12].y) * H);
+    const side = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys), shoulder * 0.45, 24) * 2.4;
+    const x0 = cx - side / 2, y0 = cy - side / 2;
+    const c = document.createElement("canvas"); c.width = c.height = 384;
+    const g = c.getContext("2d"); g.fillStyle = "#000"; g.fillRect(0, 0, 384, 384);
+    g.imageSmoothingQuality = "high";
+    g.drawImage(img, x0, y0, side, side, 0, 0, 384, 384);
+    const r = faceTask.detect(c);
+    (r.faceLandmarks || []).slice(0, 1).forEach((lm, i) => {
+      out.faceLandmarks.push(lm.map((q) => ({ x: (x0 + q.x * side) / W, y: (y0 + q.y * side) / H, z: q.z })));
+      if (r.faceBlendshapes && r.faceBlendshapes[i]) out.faceBlendshapes.push(r.faceBlendshapes[i]);
+    });
+  }
+  return out;
+}
+
 function angle(a, b, c) { // b 에서의 각도 (도)
   const v1 = [a.x - b.x, a.y - b.y], v2 = [c.x - b.x, c.y - b.y];
   const cos = (v1[0] * v2[0] + v1[1] * v2[1]) / (Math.hypot(...v1) * Math.hypot(...v2) + 1e-9);
@@ -125,6 +158,9 @@ function drawResult(img, res) {
   if (kind === "face") {
     const faces = res.faceLandmarks || [];
     faces.forEach((lm) => {
+      // 얼굴 크기에 맞춰 선 굵기 정하기 (작은 얼굴은 가는 선)
+      const fw = (Math.max(...lm.map((q) => q.x)) - Math.min(...lm.map((q) => q.x))) * W;
+      const lw = Math.max(0.6, Math.min(3, fw / 160));
       if (style === "mesh") {
         du.drawConnectors(lm, FaceLandmarker.FACE_LANDMARKS_TESSELATION, { color: "rgba(255,255,255,0.55)", lineWidth: lw });
         du.drawConnectors(lm, FaceLandmarker.FACE_LANDMARKS_FACE_OVAL, { color: "#ee6b55", lineWidth: lw * 2 });
@@ -133,7 +169,7 @@ function drawResult(img, res) {
         line(FaceLandmarker.FACE_LANDMARKS_LEFT_EYE, "#3b82c4"); line(FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE, "#3b82c4");
         line(FaceLandmarker.FACE_LANDMARKS_LEFT_EYEBROW, "#8e5bd0"); line(FaceLandmarker.FACE_LANDMARKS_RIGHT_EYEBROW, "#8e5bd0");
         line(FaceLandmarker.FACE_LANDMARKS_LIPS, "#ee6b55");
-        ctx.fillStyle = "#e0a020"; ctx.beginPath(); ctx.arc(lm[1].x * W, lm[1].y * H, lw * 5, 0, 7); ctx.fill();
+        ctx.fillStyle = "#e0a020"; ctx.beginPath(); ctx.arc(lm[1].x * W, lm[1].y * H, lw * 3, 0, 7); ctx.fill();
       }
     });
     info.push(["찾은 얼굴", faces.length + "개"]);
@@ -157,6 +193,8 @@ function drawResult(img, res) {
     }
   }
   meters(info);
+  if (kind === "face" && !(res.faceLandmarks || []).length)
+    $("#meters").insertAdjacentHTML("beforeend", `<p class="small" style="grid-column:1/-1;margin:0">얼굴을 찾지 못했어요. 옆모습이거나 얼굴이 아주 작으면 찾기 어려워요.</p>`);
   $("#empty").hidden = true; view.hidden = false;
 }
 
@@ -166,7 +204,8 @@ async function runImage() {
   try {
     const t = await getTask(kind, "IMAGE");
     const t0 = performance.now();
-    const res = t.detect(src);
+    let res = t.detect(src);
+    if (kind === "face" && !(res.faceLandmarks || []).length) res = await faceFromBody(t, src);
     const ms = performance.now() - t0;
     drawResult(src, res);
     $("#status").innerHTML = `<span class="pill">${Math.round(ms)}ms</span>`;

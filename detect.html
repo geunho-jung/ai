@@ -28,21 +28,19 @@
       </div>
       <div class="ctrl">
         <label>흐림 <b id="blurVal">0</b></label>
-        <input type="range" id="blur" min="0" max="20" step="1" value="0">
-      </div>
-      <div class="ctrl">
-        <label>겹침 기준값 <b id="iouVal">0.70</b></label>
-        <input type="range" id="iou" min="0.1" max="1" step="0.05" value="0.7">
-        <div class="ends"><span>겹친 상자 많이 지움</span><span>안 지움</span></div>
+        <input type="range" id="blur" min="0" max="10" step="1" value="0">
       </div>
     </section>
-    <section class="todo">
-      <h2>해 볼 것</h2>
-      <ol>
-        <li><span>기본</span>예제 사진에서 AI가 찾은 물체 확인하기</li>
-        <li><span>응용</span>물체가 5개 이상 찾아지는 사진 넣어 보기</li>
-        <li><span>심화</span>AI가 틀리게 찾는 사진 찾기 (어둡게 · 흐리게도 해 보기)</li>
-      </ol>
+    <section class="about">
+      <h2>이 기술은</h2>
+      <div class="name">YOLO11n</div>
+      <span class="field">컴퓨터 비전 · 객체 검출</span>
+      <ul>
+        <li>사진을 <b>한 번만 보고</b> 물체의 위치(상자)와 종류를 동시에 찾아요. YOLO는 "You Only Look Once"의 줄임말이에요.</li>
+        <li><b>COCO</b>라는 사진 모음 약 12만 장으로 미리 학습했어요. 그래서 사람, 자동차, 개, 컵 등 <b>80종류</b>만 알아요.</li>
+        <li><b>신뢰도</b>는 AI가 얼마나 확신하는지예요. 기준값보다 낮은 것은 화면에 표시하지 않아요.</li>
+        <li>만든 곳: Ultralytics (2024)</li>
+      </ul>
     </section>
   </aside>
 
@@ -56,7 +54,7 @@
     <div class="card" id="listPanel" hidden>
       <h3>찾은 물체</h3>
       <table class="list"><thead><tr><th>번호</th><th>물체</th><th>신뢰도</th><th>상자 크기</th></tr></thead><tbody id="list"></tbody></table>
-      <p class="small" style="margin:10px 0 0">AI는 사람, 자동차, 개, 컵, 의자 등 80종류만 알아요.</p>
+      <p class="small" style="margin:10px 0 0">AI는 사람, 자동차, 개, 컵, 의자 등 80종류만 알아요. 상자 크기는 픽셀(가로 × 세로) 단위예요.</p>
     </div>
   </section>
 </main>
@@ -74,7 +72,7 @@
   const loader = AI.loader($("#stage"));
   const view = $("#view"), ctx = view.getContext("2d");
   let src = null, adjusted = null, result = null, model = null;
-  const S = { conf: () => +$("#conf").value, iou: () => +$("#iou").value, bright: () => +$("#bright").value, blur: () => +$("#blur").value };
+  const S = { conf: () => +$("#conf").value, iou: () => 0.7, bright: () => +$("#bright").value, blur: () => +$("#blur").value };
 
   async function getModel() {
     if (model) return model;
@@ -122,10 +120,10 @@
   AI.setupPicker({
     drop: $("#drop"), samplesEl: $("#samples"), maxSide: 1280,
     samples: [
-      { src: "assets/samples/bus.jpg", label: "거리와 버스" },
-      { src: "assets/samples/dog.jpg", label: "강아지" },
-      { src: "assets/samples/cat.jpg", label: "고양이" },
-      { src: "assets/samples/coffee.jpg", label: "커피잔" },
+      { src: "assets/samples/detect/street.jpg", label: "도시 거리" },
+      { src: "assets/samples/detect/plaza.jpg", label: "광장" },
+      { src: "assets/samples/detect/kitchen.jpg", label: "부엌" },
+      { src: "assets/samples/detect/beach.jpg", label: "해변의 연" },
     ],
     onImage: async (c) => { src = c; await run(); },
     onError: (m) => err.show(m),
@@ -133,11 +131,10 @@
 
   const label = () => {
     $("#confVal").textContent = S.conf().toFixed(2);
-    $("#iouVal").textContent = S.iou().toFixed(2);
     $("#brightVal").textContent = Math.round(S.bright() * 100) + "%";
     $("#blurVal").textContent = S.blur();
   };
-  for (const id of ["#conf", "#iou"]) $(id).addEventListener("input", () => { label(); draw(); });
+  for (const id of ["#conf"]) $(id).addEventListener("input", () => { label(); draw(); });
   let t = null;
   for (const id of ["#bright", "#blur"]) $(id).addEventListener("input", () => { label(); clearTimeout(t); t = setTimeout(run, 250); });
 

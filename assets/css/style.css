@@ -42,12 +42,13 @@ header.top h1 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0
 .drop { border: 1.5px dashed #d3cec5; border-radius: 12px; padding: 16px 12px; text-align: center; cursor: pointer; transition: .15s; font-size: 14.5px; color: var(--muted); }
 .drop b { display: block; color: var(--text); font-size: 15.5px; margin-bottom: 2px; }
 .drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
-.samples { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-top: 10px; }
+.samples { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-top: 8px; }
 .samples:empty { display: none; }
 .samples button { padding: 0; border: 2px solid transparent; border-radius: 9px; overflow: hidden; cursor: pointer; background: var(--soft); aspect-ratio: 1; }
 .samples button:hover, .samples button.on { border-color: var(--accent); }
 .samples img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.links { margin-top: 10px; font-size: 13.5px; color: var(--muted); }
+.links { margin-top: 8px; font-size: 13.5px; color: var(--muted); display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 2px; }
+.links .fmt { margin-left: auto; font-size: 12.5px; }
 .links a { color: var(--text); font-weight: 700; text-decoration: none; border-bottom: 1px solid #cfcac2; margin-left: 4px; }
 .links a:hover { color: var(--accent-dark); border-color: var(--accent); }
 
@@ -74,11 +75,14 @@ header.top h1 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0
 .check { display: flex; gap: 8px; align-items: center; font-size: 14.5px; font-weight: 700; cursor: pointer; margin-top: 10px; }
 .check input { accent-color: var(--accent); width: 16px; height: 16px; }
 
-/* 해 볼 것 */
-.todo ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 14.5px; }
-.todo li { display: grid; grid-template-columns: 34px 1fr; gap: 6px; }
-.todo li span { font-size: 12.5px; font-weight: 800; color: var(--muted); padding-top: 1px; }
-.todo li:nth-child(3) span { color: var(--accent-dark); }
+/* 이 기술은 (사용한 AI 설명) */
+.about p { margin: 0 0 8px; font-size: 14px; color: var(--muted); }
+.about .name { font-size: 15.5px; font-weight: 800; color: var(--text); margin-bottom: 2px; }
+.about .field { display: inline-block; font-size: 12.5px; font-weight: 800; color: var(--accent-dark); background: var(--accent-soft); border-radius: 6px; padding: 1px 8px; margin-bottom: 8px; }
+.about ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 7px; font-size: 14px; line-height: 1.5; }
+.about li { position: relative; padding-left: 12px; }
+.about li::before { content: ""; position: absolute; left: 0; top: .62em; width: 4px; height: 4px; border-radius: 50%; background: #c3bdb3; }
+.about b { font-weight: 800; }
 
 /* 결과 영역 */
 .stage { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; min-height: 440px; position: relative; }
@@ -131,8 +135,9 @@ table.list td { border-bottom: 1px solid #f0ede7; padding: 6px 4px; font-variant
 
 /* 첫 화면 */
 .home { max-width: 1180px; margin: 0 auto; padding: 44px 28px 56px; }
-.home h1 { font-size: 34px; margin: 0 0 6px; letter-spacing: -0.8px; font-weight: 800; }
-.home .lead { color: var(--muted); margin: 0 0 28px; font-size: 16.5px; }
+.home .head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
+.home h1 { font-size: 34px; margin: 0; letter-spacing: -0.8px; font-weight: 800; }
+.home .lead { color: var(--muted); margin: 0; font-size: 16.5px; }
 .menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
 @media (max-width: 1000px) { .menu { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 640px) { .menu { grid-template-columns: 1fr; } }

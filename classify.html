@@ -34,13 +34,16 @@
       <div class="ctrl"><label>회전 <b id="rotVal">0°</b></label><input type="range" id="rot" min="0" max="180" step="10" value="0"></div>
       <button class="btn ghost" id="reset" type="button" style="margin-top:12px">원래대로</button>
     </section>
-    <section class="todo">
-      <h2>해 볼 것</h2>
-      <ol>
-        <li><span>기본</span>AI의 1등 답과 확률 확인하기</li>
-        <li><span>응용</span>어둡게 · 흐리게 · 돌려서 1등 답이 바뀌는 지점 찾기</li>
-        <li><span>심화</span>'AI가 본 곳'으로 AI가 정말 물체를 보고 판단했는지 확인하기</li>
-      </ol>
+    <section class="about">
+      <h2>이 기술은</h2>
+      <div class="name">YOLO11n-cls</div>
+      <span class="field">컴퓨터 비전 · 이미지 분류</span>
+      <ul>
+        <li><b>ImageNet</b> 사진 약 128만 장으로 학습해서 동물 · 음식 · 물건 등 <b>1000종류</b>를 구분해요.</li>
+        <li>사진 전체를 보고 각 종류일 <b>확률</b>을 계산한 뒤, 가장 높은 것을 답으로 골라요.</li>
+        <li><b>AI가 본 곳</b>: 사진을 조각조각 가려 보면서, 가렸을 때 확률이 크게 떨어지는 곳을 빨갛게 표시해요.</li>
+        <li>만든 곳: Ultralytics (2024)</li>
+      </ul>
     </section>
   </aside>
 
@@ -185,10 +188,10 @@
   AI.setupPicker({
     drop: $("#drop"), samplesEl: $("#samples"), maxSide: 1024,
     samples: [
-      { src: "assets/samples/dog.jpg", label: "강아지" },
-      { src: "assets/samples/cat.jpg", label: "고양이" },
-      { src: "assets/samples/coffee.jpg", label: "커피잔" },
-      { src: "assets/samples/rocket.jpg", label: "로켓" },
+      { src: "assets/samples/classify/dog.jpg", label: "강아지" },
+      { src: "assets/samples/classify/eagle.jpg", label: "독수리" },
+      { src: "assets/samples/classify/coffee.jpg", label: "커피잔" },
+      { src: "assets/samples/classify/panda.jpg", label: "판다" },
     ],
     onImage: async (c) => { src = c; await run(); },
     onError: (m) => err.show(m),

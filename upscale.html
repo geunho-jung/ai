@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>흐린 사진 선명하게</title>
 <link rel="stylesheet" href="assets/css/style.css">
+<style>
+  .step { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 12.5px; margin-right: 7px; vertical-align: 1px; }
+  .opt { font-weight: 400; font-size: 13px; }
+  #preView { image-rendering: auto; }
+</style>
 </head>
 <body>
 <header class="top"><a class="back" href="index.html" title="처음으로">←</a><h1>흐린 사진 선명하게</h1></header>
@@ -12,29 +17,34 @@
 <main class="page">
   <aside class="side">
     <section>
-      <h2>사진</h2>
+      <h2><span class="step">1</span>사진 고르기</h2>
       <div id="picker"></div>
+      <p class="small" style="margin:8px 0 0">예제 사진은 원래부터 작고 흐린 사진이에요.</p>
     </section>
     <section>
-      <h2>작고 흐리게 만들기</h2>
-      <div class="ctrl">
-        <label>줄일 크기 (긴 쪽) <b id="sizeVal">120px</b></label>
-        <input type="range" id="size" min="48" max="200" step="8" value="120">
+      <h2><span class="step">2</span>일부러 흐리게 만들기 <span class="opt">(선택)</span></h2>
+      <div class="tabs" id="blurSel">
+        <button class="on" data-k="0" type="button">그대로</button>
+        <button data-k="1" type="button">조금 흐리게</button>
+        <button data-k="2" type="button">많이 흐리게</button>
       </div>
-      <div class="ctrl">
-        <label>사진 깨짐 (JPEG) <b id="qVal">없음</b></label>
-        <input type="range" id="q" min="5" max="100" step="5" value="100">
-        <div class="ends"><span>많이 깨짐</span><span>없음</span></div>
-      </div>
-      <button class="btn block" id="go" type="button" style="margin-top:14px" disabled>4배로 키우기</button>
+      <p class="small" style="margin:8px 0 0">내 사진이 이미 선명하다면, 작게 줄이고 화질을 떨어뜨려 일부러 흐린 사진을 만들어요.</p>
     </section>
-    <section class="todo">
-      <h2>해 볼 것</h2>
-      <ol>
-        <li><span>기본</span>가운데 막대를 끌어 단순 확대와 AI 확대 비교하기</li>
-        <li><span>응용</span>사진 깨짐을 많이 넣고 AI가 얼마나 깨끗하게 만드는지 보기</li>
-        <li><span>심화</span>원본과 비교해 AI가 없던 무늬를 지어낸 곳 찾기</li>
-      </ol>
+    <section>
+      <h2><span class="step">3</span>AI로 선명하게 만들기</h2>
+      <button class="btn block" id="go" type="button" disabled>AI로 4배 키우기</button>
+      <p class="small" style="margin:8px 0 0">가로 · 세로를 4배로 키우면서 흐린 부분을 선명하게 다시 그려요.</p>
+    </section>
+    <section class="about">
+      <h2>이 기술은</h2>
+      <div class="name">Real-ESRGAN</div>
+      <span class="field">생성 AI · 초해상도</span>
+      <ul>
+        <li>선명한 사진을 일부러 <b>작게 · 흐리게 · 깨지게</b> 만든 뒤, 원래 선명한 사진으로 되돌리도록 학습했어요.</li>
+        <li><b>그냥 확대</b>는 주변 픽셀 색을 섞어서 빈칸을 채우기 때문에 뿌옇게 돼요.</li>
+        <li><b>AI 확대</b>는 학습한 경험으로 선과 무늬를 새로 그려 넣어요. 그래서 원래 없던 무늬가 생기기도 해요.</li>
+        <li>만든 곳: Tencent ARC (2021)</li>
+      </ul>
     </section>
   </aside>
 
@@ -42,23 +52,15 @@
     <div class="error" id="err"></div>
     <div class="stage" id="stage">
       <div class="status" id="status"></div>
-      <div class="empty" id="empty">예제 사진을 눌러 시작하세요</div>
+      <div class="empty" id="empty">왼쪽에서 예제 사진을 눌러 시작하세요</div>
+      <div id="pre" hidden>
+        <canvas class="view" id="preView"></canvas>
+        <p class="small" style="text-align:center;margin:10px 0 0" id="preInfo"></p>
+      </div>
       <div id="out" hidden>
         <div id="cmp"></div>
-        <div class="row" style="margin-top:12px;justify-content:space-between">
-          <div class="tabs" id="leftSel">
-            <button class="on" data-k="bicubic" type="button">단순 확대</button>
-            <button data-k="nearest" type="button">픽셀 그대로</button>
-            <button data-k="orig" type="button">원본</button>
-          </div>
-          <span class="small" id="smallInfo"></span>
-        </div>
+        <p class="small" style="text-align:center;margin:10px 0 0">가운데 막대를 좌우로 끌어서 비교해 보세요.</p>
       </div>
-    </div>
-    <div class="card" id="scorePanel" hidden>
-      <h3>원본과 얼마나 같을까? (PSNR, 클수록 원본에 가까움)</h3>
-      <table class="list"><tbody id="score"></tbody></table>
-      <p class="small" style="margin:10px 0 0">AI 확대가 더 선명해 보여도 점수는 낮을 수 있어요. 원본에 없던 디테일을 그럴듯하게 그려 넣기 때문이에요.</p>
     </div>
   </section>
 </main>
@@ -67,13 +69,15 @@
 <script src="assets/js/common.js"></script>
 <script>
 (async function () {
-  const MODEL = "models/realesr-general-x4v3.onnx";
+  const MODEL = "models/realesr-general-x4v3.onnx"; // Real-ESRGAN (general x4v3)
+  const MAX = 240; // AI에 넣는 사진의 최대 크기 (긴 쪽). 크면 오래 걸림
+  const BLUR = [null, { side: 150, q: 0.6 }, { side: 90, q: 0.35 }];
   const $ = AI.$;
   $("#picker").innerHTML = AI.pickerHTML();
   const err = AI.errorBox($("#err"));
   const loader = AI.loader($("#stage"));
   const cmp = AI.compare($("#cmp"));
-  let model = null, src = null, R = {}, left = "bicubic";
+  let model = null, src = null, small = null, plain = null, aiOut = null, blur = 0, shrunk = false;
 
   async function getModel() {
     if (model) return model;
@@ -81,12 +85,16 @@
     model = await AI.loadModel(MODEL, (p) => loader.progress(p));
     return model;
   }
-  function resize(c, w, h, smooth = true) {
+  function resize(c, w, h) {
     const o = document.createElement("canvas"); o.width = w; o.height = h;
-    const g = o.getContext("2d"); g.imageSmoothingEnabled = smooth; g.imageSmoothingQuality = "high";
+    const g = o.getContext("2d"); g.imageSmoothingQuality = "high";
     g.drawImage(c, 0, 0, w, h);
     return o;
   }
+  const fit = (c, side) => {
+    const r = Math.min(1, side / Math.max(c.width, c.height));
+    return r < 1 ? resize(c, Math.max(8, Math.round(c.width * r)), Math.max(8, Math.round(c.height * r))) : c;
+  };
   const jpeg = (c, q) => new Promise((res) => c.toBlob(async (b) => res(await AI.blobToCanvas(b, 4096)), "image/jpeg", q));
 
   async function esrgan(m, c) {
@@ -106,65 +114,63 @@
     g.putImageData(im, 0, 0);
     return o;
   }
-  function psnr(a, b) {
-    const w = a.width, h = a.height;
-    const A = a.getContext("2d").getImageData(0, 0, w, h).data, B = b.getContext("2d").getImageData(0, 0, w, h).data;
-    let s = 0;
-    for (let i = 0; i < A.length; i += 4) for (let k = 0; k < 3; k++) { const d = A[i + k] - B[i + k]; s += d * d; }
-    const mse = s / (w * h * 3);
-    return mse === 0 ? 99 : 10 * Math.log10((255 * 255) / mse);
+
+  // 1·2단계 : AI에 넣을 사진 준비하고 보여 주기
+  async function prepare() {
+    if (!src) return;
+    err.hide();
+    shrunk = Math.max(src.width, src.height) > MAX;
+    small = fit(src, MAX);
+    if (BLUR[blur]) small = await jpeg(fit(src, BLUR[blur].side), BLUR[blur].q);
+    plain = resize(small, small.width * 4, small.height * 4); // 그냥 4배 확대
+    aiOut = null;
+    const v = $("#preView");
+    v.width = plain.width; v.height = plain.height;
+    v.getContext("2d").drawImage(plain, 0, 0);
+    $("#empty").hidden = true; $("#out").hidden = true; $("#pre").hidden = false;
+    $("#preInfo").innerHTML = `AI에 넣을 사진이에요 (${small.width}×${small.height}).` +
+      (shrunk && !BLUR[blur] ? " 사진이 커서 긴 쪽을 " + MAX + "px로 줄였어요." : "") + "<br>왼쪽 <b>3</b>번 버튼을 누르세요.";
+    $("#status").innerHTML = `<span class="pill">${small.width}×${small.height}</span>`;
+    $("#go").disabled = false;
   }
 
+  // 3단계 : AI로 4배 키우기
   async function run() {
-    if (!src) return;
+    if (!small) return;
     err.hide();
     try {
       const m = await getModel();
-      const L = +$("#size").value, q = +$("#q").value;
-      const r = Math.min(1, L / Math.max(src.width, src.height));
-      const sw = Math.max(8, Math.round(src.width * r)), sh = Math.max(8, Math.round(src.height * r));
-      let small = resize(src, sw, sh);
-      if (q < 100) small = await jpeg(small, q / 100);
-      const W = sw * 4, H = sh * 4;
-      R = { small, orig: resize(src, W, H), nearest: resize(small, W, H, false), bicubic: resize(small, W, H, true) };
-      loader.show("AI가 사진을 키우는 중", `${sw}×${sh} → ${W}×${H}`);
+      loader.show("AI가 사진을 키우는 중", `${small.width}×${small.height} → ${small.width * 4}×${small.height * 4}`);
       await AI.nextFrame(); await AI.sleep(30);
       const t0 = performance.now();
-      R.ai = await esrgan(m, small);
+      aiOut = await esrgan(m, small);
       const ms = performance.now() - t0;
       loader.hide();
-      $("#empty").hidden = true; $("#out").hidden = false;
+      $("#pre").hidden = true; $("#out").hidden = false;
       show();
-      $("#status").innerHTML = `<span class="pill accent">${sw}×${sh} → ${W}×${H}</span><span class="pill">${(ms / 1000).toFixed(1)}초</span>`;
-      $("#smallInfo").textContent = `AI에 넣은 사진: ${sw}×${sh}`;
-      $("#score").innerHTML = [["픽셀 그대로", R.nearest], ["단순 확대", R.bicubic], ["AI 확대", R.ai]]
-        .map(([a, c]) => `<tr><td><b>${a}</b></td><td>${psnr(R.orig, c).toFixed(1)} dB</td></tr>`).join("");
-      $("#scorePanel").hidden = false;
+      $("#status").innerHTML = `<span class="pill accent">${small.width}×${small.height} → ${aiOut.width}×${aiOut.height}</span><span class="pill">${(ms / 1000).toFixed(1)}초</span>`;
     } catch (e) {
       console.error(e); loader.hide();
       err.show("실행 중 문제가 생겼어요: " + (e.message || e));
     }
   }
-  const NAMES = { bicubic: "단순 확대", nearest: "픽셀 그대로", orig: "원본" };
-  const show = () => R.ai && cmp.set(R[left], R.ai, NAMES[left], "AI 확대");
-  AI.$$("#leftSel button").forEach((b) => b.addEventListener("click", () => {
-    AI.$$("#leftSel button").forEach((x) => x.classList.toggle("on", x === b));
-    left = b.dataset.k; show();
+  const show = () => aiOut && cmp.set(plain, aiOut, "그냥 4배 확대", "AI로 4배 키움");
+  AI.$$("#blurSel button").forEach((b) => b.addEventListener("click", () => {
+    AI.$$("#blurSel button").forEach((x) => x.classList.toggle("on", x === b));
+    blur = +b.dataset.k; prepare();
   }));
-  $("#size").addEventListener("input", () => ($("#sizeVal").textContent = $("#size").value + "px"));
-  $("#q").addEventListener("input", () => ($("#qVal").textContent = +$("#q").value === 100 ? "없음" : `품질 ${$("#q").value}`));
   $("#go").addEventListener("click", run);
   window.addEventListener("resize", show);
 
   AI.setupPicker({
-    drop: $("#drop"), samplesEl: $("#samples"), maxSide: 1200,
+    drop: $("#drop"), samplesEl: $("#samples"), maxSide: 2000,
     samples: [
-      { src: "assets/samples/astronaut.jpg", label: "우주비행사" },
-      { src: "assets/samples/cat.jpg", label: "고양이" },
-      { src: "assets/samples/coffee.jpg", label: "커피잔" },
-      { src: "assets/samples/sign.png", label: "표지판 (글자)" },
+      { src: "assets/samples/upscale/baboon.png", label: "맨드릴 (123×120)" },
+      { src: "assets/samples/upscale/comic.png", label: "만화 그림 (60×90)" },
+      { src: "assets/samples/upscale/wolf.png", label: "늑대 흑백 사진 (236×236)" },
+      { src: "assets/samples/upscale/cat_cartoon.png", label: "고양이 캐릭터 (179×179)" },
     ],
-    onImage: async (c) => { src = c; $("#go").disabled = false; await run(); },
+    onImage: async (c) => { src = c; await prepare(); },
     onError: (m) => err.show(m),
   });
 })();

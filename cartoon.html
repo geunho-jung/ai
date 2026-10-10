@@ -12,32 +12,27 @@
 <main class="page">
   <aside class="side">
     <section>
-      <h2>그림체</h2>
+      <h2>어떤 사진인가요?</h2>
       <div class="tabs" id="styleSel">
-        <button class="on" data-s="face" type="button">인물 만화</button>
-        <button data-s="scene" type="button">애니메이션 배경</button>
+        <button class="on" data-s="face" type="button">인물 사진</button>
+        <button data-s="scene" type="button">풍경 사진</button>
       </div>
+      <p class="small" id="styleHelp" style="margin:8px 0 0"></p>
     </section>
     <section>
       <h2>사진</h2>
       <div id="picker"></div>
-      <p class="small" style="margin:10px 0 0">인물 만화는 얼굴이 크게 나온 사진일수록 잘 돼요.</p>
     </section>
-    <section>
-      <h2>조절</h2>
-      <div class="ctrl">
-        <label>처리 크기 (긴 쪽) <b id="sizeVal">512</b></label>
-        <input type="range" id="size" min="256" max="768" step="64" value="512">
-        <div class="ends"><span>빠름</span><span>자세히 (느림)</span></div>
-      </div>
-    </section>
-    <section class="todo">
-      <h2>해 볼 것</h2>
-      <ol>
-        <li><span>기본</span>인물 사진을 만화로 바꿔 보기</li>
-        <li><span>응용</span>같은 사진을 두 그림체로 바꿔 비교하기</li>
-        <li><span>심화</span>잘 바뀌는 사진과 이상하게 바뀌는 사진의 차이 찾기</li>
-      </ol>
+    <section class="about">
+      <h2>이 기술은</h2>
+      <div class="name">AnimeGANv2</div>
+      <span class="field">생성 AI · 그림체 바꾸기</span>
+      <ul>
+        <li><b>GAN</b>(생성적 적대 신경망)으로 학습했어요. 그림을 만드는 AI와 "진짜 만화 같은지" 심사하는 AI가 서로 경쟁하면서 실력이 늘어요.</li>
+        <li><b>인물용</b>: 얼굴 사진과 만화풍 얼굴 그림으로 학습해서, 얼굴을 만화 주인공처럼 바꿔요.</li>
+        <li><b>풍경용</b>: 일본 애니메이션 영화 장면으로 학습해서, 거리 · 하늘 · 나무를 애니메이션 배경처럼 바꿔요.</li>
+        <li>사진의 구도는 그대로 두고 <b>색과 선, 질감</b>만 바꾸는 것이 핵심이에요.</li>
+      </ul>
     </section>
   </aside>
 
@@ -60,7 +55,8 @@
 (async function () {
   // AnimeGANv2 (사진 → 만화 그림체로 바꾸는 생성 AI)
   const MODELS = { face: "models/cartoon_face.onnx", scene: "models/cartoon_scene.onnx" };
-  const NAMES = { face: "인물 만화", scene: "애니메이션 배경" };
+  const NAMES = { face: "만화 얼굴", scene: "애니메이션 배경" };
+  const HELP = { face: "얼굴이 크게 나온 사진을 만화 주인공 얼굴처럼 바꿔요.", scene: "거리 · 자연 사진을 애니메이션 영화의 배경 그림처럼 바꿔요." };
   const $ = AI.$;
   $("#picker").innerHTML = AI.pickerHTML();
   const err = AI.errorBox($("#err"));
@@ -76,7 +72,7 @@
       loader.show("AI 모델 불러오는 중", "9MB", 0);
       const m = await AI.loadModel(url, (p) => loader.progress(p));
       // 긴 쪽을 정한 크기로, 가로 · 세로는 8의 배수로
-      const L = +$("#size").value, r = Math.min(1, L / Math.max(src.width, src.height));
+      const L = 512, r = Math.min(1, L / Math.max(src.width, src.height));
       const w = Math.max(64, Math.round((src.width * r) / 8) * 8), h = Math.max(64, Math.round((src.height * r) / 8) * 8);
       input = document.createElement("canvas"); input.width = w; input.height = h;
       const ig = input.getContext("2d", { willReadFrequently: true }); ig.imageSmoothingQuality = "high";
@@ -109,22 +105,26 @@
 
   AI.$$("#styleSel button").forEach((b) => b.addEventListener("click", () => {
     AI.$$("#styleSel button").forEach((x) => x.classList.toggle("on", x === b));
-    style = b.dataset.s; run();
+    setStyle(b.dataset.s); run();
   }));
-  let t = null;
-  $("#size").addEventListener("input", () => { $("#sizeVal").textContent = $("#size").value; clearTimeout(t); t = setTimeout(run, 400); });
+  function setStyle(s) {
+    style = s;
+    AI.$$("#styleSel button").forEach((x) => x.classList.toggle("on", x.dataset.s === s));
+    $("#styleHelp").textContent = HELP[s];
+  }
+  setStyle("face");
   $("#save").addEventListener("click", () => out && AI.download(out, "AI_만화.png"));
   window.addEventListener("resize", () => out && cmp.set(input, out, "원본", NAMES[style]));
 
   AI.setupPicker({
     drop: $("#drop"), samplesEl: $("#samples"), maxSide: 1280,
     samples: [
-      { src: "assets/samples/portrait.jpg", label: "인물 (얼굴)" },
-      { src: "assets/samples/bus.jpg", label: "거리" },
-      { src: "assets/samples/coffee.jpg", label: "커피잔" },
-      { src: "assets/samples/cat.jpg", label: "고양이" },
+      { src: "assets/samples/cartoon/woman.jpg", label: "인물", style: "face" },
+      { src: "assets/samples/cartoon/kids.jpg", label: "아이들", style: "face" },
+      { src: "assets/samples/cartoon/lake.jpg", label: "호수와 산", style: "scene" },
+      { src: "assets/samples/cartoon/venice.jpg", label: "베네치아 운하", style: "scene" },
     ],
-    onImage: async (c) => { src = c; await run(); },
+    onImage: async (c, info) => { src = c; if (info && info.style) setStyle(info.style); await run(); },
     onError: (m) => err.show(m),
   });
 })();
