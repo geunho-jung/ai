@@ -227,13 +227,15 @@
       $("#status").innerHTML = `<span class="pill accent">학습 중... 0 / ${epochs}회</span>`;
       await model.fit(xs, ys, {
         epochs, batchSize: 64, shuffle: true, validationData: [xt, yt],
+        yieldEvery: "never", // tf 기본 쉬기 방식은 탭이 가려지면 멈춰서, 아래 onBatchEnd에서 직접 쉼
         callbacks: {
+          onBatchEnd: async (b) => { if (b % 10 === 0) await AI.nextFrame(); },
           onEpochEnd: async (ep, logs) => {
             hist.train.push(logs.acc * 100);
             hist.test.push(logs.val_acc * 100);
             drawChart(hist, epochs);
             $("#status").innerHTML = `<span class="pill accent">학습 중... ${ep + 1} / ${epochs}회</span><span class="pill">확인용 정확도 ${(logs.val_acc * 100).toFixed(1)}%</span>`;
-            await tf.nextFrame();
+            await AI.nextFrame();
           },
         },
       });
