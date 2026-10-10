@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>얼굴·몸 점 찍기</title>
+<link rel="stylesheet" href="assets/css/style.css">
+<style>
+  .meters { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 14px; }
+  .meter { background: #faf9f6; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+  .meter span { font-size: 13px; color: var(--muted); font-weight: 700; }
+  .meter b { display: block; font-size: 24px; color: var(--accent-dark); line-height: 1.25; font-variant-numeric: tabular-nums; }
+  .meter i { display: block; height: 5px; border-radius: 9px; background: #eeeae3; margin-top: 6px; overflow: hidden; }
+  .meter i u { display: block; height: 100%; background: var(--accent); }
+</style>
+</head>
+<body>
+<header class="top"><a class="back" href="index.html" title="처음으로">←</a><h1>얼굴·몸 점 찍기</h1></header>
+
+<main class="page">
+  <aside class="side">
+    <section>
+      <h2>찾을 대상</h2>
+      <div class="tabs" id="kind">
+        <button class="on" data-k="face" type="button">얼굴 (점 478개)</button>
+        <button data-k="pose" type="button">몸 (점 33개)</button>
+      </div>
+      <div class="tabs" id="faceStyle" style="margin-top:8px">
+        <button class="on" data-s="mesh" type="button">그물망</button>
+        <button data-s="parts" type="button">눈 · 코 · 입</button>
+      </div>
+    </section>
+    <section>
+      <h2>사진</h2>
+      <div id="picker"></div>
+    </section>
+    <section class="todo">
+      <h2>해 볼 것</h2>
+      <ol>
+        <li><span>기본</span>얼굴과 몸에 점이 찍히는 것 확인하기</li>
+        <li><span>응용</span>웃는 얼굴 · 입 벌린 얼굴 사진을 넣고 숫자 비교하기</li>
+        <li><span>심화</span>옆모습 · 가린 얼굴 · 그림 속 얼굴도 찾는지 알아보기</li>
+      </ol>
+    </section>
+  </aside>
+
+  <section class="main">
+    <div class="error" id="err"></div>
+    <div class="stage" id="stage">
+      <div class="status" id="status"></div>
+      <div class="empty" id="empty">예제 사진을 눌러 시작하세요</div>
+      <canvas class="view" id="view" hidden></canvas>
+      <div class="meters" id="meters"></div>
+    </div>
+  </section>
+</main>
+
+<script src="assets/js/common.js"></script>
+<script type="module">
+import { FilesetResolver, FaceLandmarker, PoseLandmarker, DrawingUtils } from "./lib/mediapipe/vision_bundle.mjs";
+
+const $ = AI.$;
+$("#picker").innerHTML = AI.pickerHTML();
+const err = AI.errorBox($("#err"));
+const loader = AI.loader($("#stage"));
+const view = $("#view"), ctx = view.getContext("2d");
+
+// 모델 파일 : 사이트 안(models/mediapipe)에 없으면 구글 공식 주소에서 받음
+const MODELS = {
+  face: { file: "face_landmarker.task", url: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task", mb: 4 },
+  pose: { file: "pose_landmarker_full.task", url: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task", mb: 9 },
+};
+const SAMPLES = {
+  face: [{ src: "assets/samples/astronaut.jpg", label: "우주비행사" }, { src: "assets/samples/bus.jpg", label: "거리의 사람들" }],
+  pose: [{ src: "assets/samples/bus.jpg", label: "거리의 사람들" }, { src: "assets/samples/astronaut.jpg", label: "우주비행사" }],
+};
+let fileset = null, kind = "face", style = "mesh", src = null;
+const tasks = {};
+
+async function modelBuffer(k) {
+  const m = MODELS[k];
+  try { return new Uint8Array(await AI.fetchBuffer("models/mediapipe/" + m.file, (p) => loader.progress(p))); }
+  catch (e) { return new Uint8Array(await AI.fetchBuffer(m.url, (p) => loader.progress(p))); }
+}
+async function getTask(k, mode) {
+  if (!fileset) {
+    loader.show("AI 준비 중");
+    fileset = await FilesetResolver.forVisionTasks(new URL("lib/mediapipe", location.href).href);
+  }
+  if (!tasks[k]) {
+    loader.show("AI 모델 불러오는 중", `${MODELS[k].mb}MB`, 0);
+    const buf = await modelBuffer(k);
+    loader.show("AI 모델 준비 중");
+    const make = (delegate) => {
+      const base = { baseOptions: { modelAssetBuffer: buf, delegate }, runningMode: "IMAGE" };
+      return k === "face"
+        ? FaceLandmarker.createFromOptions(fileset, { ...base, numFaces: 5, outputFaceBlendshapes: true })
+        : PoseLandmarker.createFromOptions(fileset, { ...base, numPoses: 5 });
+    };
+    try { tasks[k] = { t: await make("GPU"), mode: "IMAGE" }; }
+    catch (e) { console.warn("GPU 사용 불가 → CPU", e); tasks[k] = { t: await make("CPU"), mode: "IMAGE" }; }
+  }
+  const T = tasks[k];
+  if (T.mode !== mode) { await T.t.setOptions({ runningMode: mode }); T.mode = mode; }
+  loader.hide();
+  return T.t;
+}
+
+function angle(a, b, c) { // b 에서의 각도 (도)
+  const v1 = [a.x - b.x, a.y - b.y], v2 = [c.x - b.x, c.y - b.y];
+  const cos = (v1[0] * v2[0] + v1[1] * v2[1]) / (Math.hypot(...v1) * Math.hypot(...v2) + 1e-9);
+  return Math.round((Math.acos(Math.max(-1, Math.min(1, cos))) * 180) / Math.PI);
+}
+function meters(list) {
+  $("#meters").innerHTML = list.map(([name, val, pct]) =>
+    `<div class="meter"><span>${name}</span><b>${val}</b>${pct != null ? `<i><u style="width:${Math.round(pct * 100)}%"></u></i>` : ""}</div>`).join("");
+}
+
+function drawResult(img, res) {
+  view.width = img.width; view.height = img.height;
+  ctx.drawImage(img, 0, 0);
+  const du = new DrawingUtils(ctx);
+  const W = img.width, H = img.height, lw = Math.max(1, Math.round(Math.max(W, H) / 500));
+  const info = [];
+  if (kind === "face") {
+    const faces = res.faceLandmarks || [];
+    faces.forEach((lm) => {
+      if (style === "mesh") {
+        du.drawConnectors(lm, FaceLandmarker.FACE_LANDMARKS_TESSELATION, { color: "rgba(255,255,255,0.55)", lineWidth: lw });
+        du.drawConnectors(lm, FaceLandmarker.FACE_LANDMARKS_FACE_OVAL, { color: "#ee6b55", lineWidth: lw * 2 });
+      } else {
+        const line = (c, col) => du.drawConnectors(lm, c, { color: col, lineWidth: lw * 3 });
+        line(FaceLandmarker.FACE_LANDMARKS_LEFT_EYE, "#3b82c4"); line(FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE, "#3b82c4");
+        line(FaceLandmarker.FACE_LANDMARKS_LEFT_EYEBROW, "#8e5bd0"); line(FaceLandmarker.FACE_LANDMARKS_RIGHT_EYEBROW, "#8e5bd0");
+        line(FaceLandmarker.FACE_LANDMARKS_LIPS, "#ee6b55");
+        ctx.fillStyle = "#e0a020"; ctx.beginPath(); ctx.arc(lm[1].x * W, lm[1].y * H, lw * 5, 0, 7); ctx.fill();
+      }
+    });
+    info.push(["찾은 얼굴", faces.length + "개"]);
+    const bs = res.faceBlendshapes && res.faceBlendshapes[0];
+    if (bs) {
+      const g = (n) => { const c = bs.categories.find((x) => x.categoryName === n); return c ? c.score : 0; };
+      const smile = (g("mouthSmileLeft") + g("mouthSmileRight")) / 2, blink = (g("eyeBlinkLeft") + g("eyeBlinkRight")) / 2, jaw = g("jawOpen");
+      info.push(["웃는 정도", AI.pct(smile), smile], ["입 벌린 정도", AI.pct(jaw), jaw], ["눈 감은 정도", AI.pct(blink), blink]);
+    }
+  } else {
+    const ps = res.landmarks || [];
+    ps.forEach((lm, i) => {
+      du.drawConnectors(lm, PoseLandmarker.POSE_CONNECTIONS, { color: AI.color(i), lineWidth: lw * 3 });
+      du.drawLandmarks(lm, { color: "#ffffff", fillColor: AI.color(i), lineWidth: 1, radius: lw * 2.5 });
+    });
+    info.push(["찾은 사람", ps.length + "명"]);
+    if (ps[0]) {
+      const lm = ps[0];
+      info.push(["팔꿈치 각도 ①", angle(lm[11], lm[13], lm[15]) + "°"], ["팔꿈치 각도 ②", angle(lm[12], lm[14], lm[16]) + "°"]);
+      info.push(["두 손을 들었나요?", lm[15].y < lm[0].y && lm[16].y < lm[0].y ? "네!" : "아니요"]);
+    }
+  }
+  meters(info);
+  $("#empty").hidden = true; view.hidden = false;
+}
+
+async function runImage() {
+  if (!src) return;
+  err.hide();
+  try {
+    const t = await getTask(kind, "IMAGE");
+    const t0 = performance.now();
+    const res = t.detect(src);
+    const ms = performance.now() - t0;
+    drawResult(src, res);
+    $("#status").innerHTML = `<span class="pill">${Math.round(ms)}ms</span>`;
+  } catch (e) {
+    console.error(e); loader.hide();
+    err.show("실행 중 문제가 생겼어요: " + (e.message || e));
+  }
+}
+
+/* 사진 넣기 · 대상 바꾸기 */
+const onImage = async (c) => { src = c; await runImage(); };
+AI.setupPicker({ drop: $("#drop"), maxSide: 1280, onImage, onError: (m) => err.show(m) });
+const setSamples = () => AI.setupPicker({ drop: null, paste: false, samplesEl: $("#samples"), maxSide: 1280, samples: SAMPLES[kind], onImage, onError: (m) => err.show(m) });
+setSamples();
+AI.$$("#kind button").forEach((b) => b.addEventListener("click", () => {
+  AI.$$("#kind button").forEach((x) => x.classList.toggle("on", x === b));
+  kind = b.dataset.k;
+  $("#faceStyle").hidden = kind !== "face";
+  setSamples();
+  $("#meters").innerHTML = "";
+  runImage();
+}));
+AI.$$("#faceStyle button").forEach((b) => b.addEventListener("click", () => {
+  AI.$$("#faceStyle button").forEach((x) => x.classList.toggle("on", x === b));
+  style = b.dataset.s;
+  runImage();
+}));
+</script>
+</body>
+</html>

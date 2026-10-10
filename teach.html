@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>나만의 AI 만들기</title>
+<link rel="stylesheet" href="assets/css/style.css">
+<style>
+  .classes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  @media (max-width: 1100px) { .classes { grid-template-columns: 1fr; } }
+  .cls { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px; }
+  .cls h3 { margin: 0 0 8px; font-size: 16px; font-weight: 800; display: flex; justify-content: space-between; }
+  .cls h3 span { font-size: 13px; color: var(--muted); font-weight: 700; }
+  .thumbs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+  .thumbs img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; display: block; transition: .2s; }
+  .thumbs img.off { opacity: .22; filter: grayscale(1); }
+  .tests { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+  .tests figure { margin: 0; }
+  .tests img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; display: block; border: 3px solid #2f9e6d; }
+  .tests figure.bad img { border-color: var(--accent); }
+  .tests figcaption { font-size: 12.5px; font-weight: 800; margin-top: 3px; line-height: 1.3; }
+  .tests figure.bad figcaption { color: var(--accent-dark); }
+  .tests figcaption small { display: block; color: var(--muted); font-weight: 400; }
+  .score { font-size: 15px; color: var(--muted); }
+  .score b { display: block; font-size: 34px; color: var(--accent-dark); line-height: 1.2; }
+  .mine { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+  @media (max-width: 1000px) { .mine { grid-template-columns: 1fr; } }
+  #mineView { display: block; max-height: 260px; max-width: 100%; border-radius: 8px; margin: 10px auto 0; }
+  .answer { font-size: 14px; color: var(--muted); }
+  .answer b { display: block; font-size: 28px; color: var(--text); line-height: 1.25; }
+</style>
+</head>
+<body>
+<header class="top"><a class="back" href="index.html" title="처음으로">←</a><h1>나만의 AI 만들기</h1></header>
+
+<main class="page">
+  <aside class="side">
+    <section>
+      <h2>데이터 고르기</h2>
+      <div class="tabs" id="setSel">
+        <button class="on" data-s="animal" type="button">동물</button>
+        <button data-s="vehicle" type="button">탈것</button>
+        <button data-s="food" type="button">음식</button>
+      </div>
+    </section>
+    <section>
+      <h2>종류마다 학습할 사진 수</h2>
+      <div class="tabs" id="nSel">
+        <button data-n="1" type="button">1장</button>
+        <button data-n="3" class="on" type="button">3장</button>
+        <button data-n="5" type="button">5장</button>
+        <button data-n="99" type="button">전부</button>
+      </div>
+      <button class="btn block" id="trainBtn" type="button" style="margin-top:14px" disabled>학습하기</button>
+      <p class="small" id="prep" style="margin:8px 0 0">사진 준비 중...</p>
+    </section>
+    <section class="todo">
+      <h2>해 볼 것</h2>
+      <ol>
+        <li><span>기본</span>사진 3장으로 학습하고 시험 점수 확인하기</li>
+        <li><span>응용</span>1장 · 5장 · 전부로 바꾸면 점수가 어떻게 달라질까?</li>
+        <li><span>심화</span>인터넷 사진을 넣어 보고, 틀리면 학습 사진 수를 늘려 다시 해 보기</li>
+      </ol>
+    </section>
+  </aside>
+
+  <section class="main">
+    <div class="error" id="err"></div>
+    <div class="classes" id="classes"></div>
+
+    <div class="stage" id="stage" style="margin-top:16px;min-height:0">
+      <div class="row" style="justify-content:space-between;align-items:flex-start">
+        <div class="score" id="score">시험 점수<b>-</b></div>
+        <p class="small" style="max-width:420px;margin:4px 0 0">흐린 사진은 학습에 쓰지 않은 사진이에요. AI는 학습한 사진만 보고, 처음 보는 '시험 사진'을 맞혀요.</p>
+      </div>
+      <div class="tests" id="tests" style="margin-top:12px"></div>
+    </div>
+
+    <div class="card">
+      <h3>내 사진으로 시험하기</h3>
+      <div class="mine">
+        <div>
+          <div class="drop" id="drop"><b>사진 넣기</b>끌어다 놓기 · 클릭 · 복사 후 Ctrl+V</div>
+          <div class="links">무료 사진 <a href="https://www.pexels.com/ko-kr/" target="_blank" rel="noopener">Pexels</a> <a href="https://unsplash.com/ko" target="_blank" rel="noopener">Unsplash</a></div>
+          <canvas id="mineView" hidden></canvas>
+        </div>
+        <div>
+          <div class="answer">AI의 대답<b id="ans">-</b></div>
+          <div class="bars" id="bars" style="margin-top:12px"></div>
+        </div>
+      </div>
+    </div>
+    <p class="small" style="margin:10px 4px 0">1000종류의 사진으로 미리 학습된 AI의 '보는 눈'을 빌려 쓰고, 몇 장의 사진으로 종류마다의 대표 모습만 새로 배워요. 이것을 전이학습이라고 해요.</p>
+  </section>
+</main>
+
+<script src="lib/ort/ort.wasm.min.js"></script>
+<script src="assets/js/common.js"></script>
+<script src="assets/js/yolo.js"></script>
+<script>
+(async function () {
+  const MODEL = "models/yolo11n-cls.onnx";
+  const DIR = "assets/teach/";
+  const $ = AI.$;
+  const err = AI.errorBox($("#err"));
+  const loader = AI.loader($("#stage"));
+  let model = null, SETS = null, setName = "animal", nTrain = 3;
+  const featCache = {}; // 파일 이름 → 특징
+  let data = null;      // [{ name, train: [file], test: [file] }]
+  let trained = null;   // [{ name, center: Float32Array }]
+  let mineFeat = null;
+
+  async function getModel() {
+    if (model) return model;
+    loader.show("AI 모델 불러오는 중", "11MB", 0);
+    model = await AI.loadModel(MODEL, (p) => loader.progress(p));
+    loader.hide();
+    return model;
+  }
+  // 사진 → 특징값 : 미리 학습된 AI가 1000종류 각각에 매긴 점수(로그 확률)를 특징으로 사용
+  async function featureOf(canvas) {
+    const m = await getModel();
+    const { probs } = await YOLO.embed(m, YOLO.toTensorData(YOLO.classifyInput(canvas)));
+    const f = Float32Array.from(probs, (p) => Math.log(p + 1e-6));
+    let mean = 0; for (const v of f) mean += v; mean /= f.length;
+    let s = 0; for (let k = 0; k < f.length; k++) { f[k] -= mean; s += f[k] * f[k]; }
+    s = Math.sqrt(s) || 1;
+    for (let k = 0; k < f.length; k++) f[k] /= s;
+    return f;
+  }
+  // 사진 묶음(한 장에 모아 둔 그림)에서 224×224 사진 한 장씩 잘라 쓰기
+  const sprites = {};
+  async function loadSet(name) {
+    if (!sprites[name]) sprites[name] = await AI.urlToCanvas(DIR + name + ".jpg", 99999);
+    const sp = sprites[name], T = SETS.tile;
+    return Object.entries(SETS.sets[name]).map(([cls, n], r) => ({
+      name: cls,
+      items: Array.from({ length: n }, (_, i) => {
+        const c = document.createElement("canvas"); c.width = T; c.height = T;
+        c.getContext("2d").drawImage(sp, i * T, r * T, T, T, 0, 0, T, T);
+        return { key: `${name}-${r}-${i}`, canvas: c, url: c.toDataURL("image/jpeg", 0.85) };
+      }),
+    }));
+  }
+  async function featureOfFile(it) {
+    if (!featCache[it.key]) featCache[it.key] = await featureOf(it.canvas);
+    return featCache[it.key];
+  }
+
+  // 데이터 나누기 : 종류마다 4장 중 1장꼴로 시험용, 나머지는 학습용
+  const SPLIT = { animal: 0, vehicle: 2, food: 1 };
+  async function split() {
+    const k = SPLIT[setName] ?? 3;
+    data = (await loadSet(setName)).map((c) => ({
+      name: c.name, test: c.items.filter((_, i) => i % 4 === k), train: c.items.filter((_, i) => i % 4 !== k),
+    }));
+  }
+  function drawClasses() {
+    $("#classes").innerHTML = data.map((c) => {
+      const use = Math.min(nTrain, c.train.length);
+      return `<div class="cls"><h3>${c.name}<span>학습 ${use}장 / 시험 ${c.test.length}장</span></h3>
+        <div class="thumbs">${c.train.map((f, i) => `<img src="${f.url}" class="${i < use ? "" : "off"}" alt="">`).join("")}</div></div>`;
+    }).join("");
+  }
+
+  async function prepare() {
+    $("#trainBtn").disabled = true;
+    trained = null;
+    try { await split(); } catch (e) { err.show("사진을 불러오지 못했어요."); return; }
+    drawClasses();
+    $("#score").innerHTML = "시험 점수<b>-</b>";
+    $("#tests").innerHTML = data.flatMap((c) => c.test.map((f) => `<figure><img src="${f.url}" alt=""><figcaption>정답 ${c.name}<small>&nbsp;</small></figcaption></figure>`)).join("");
+    AI.$$("#tests figure img").forEach((i) => (i.style.borderColor = "var(--line)"));
+    try {
+      await getModel();
+      const all = data.flatMap((c) => c.train.concat(c.test));
+      let k = 0;
+      for (const f of all) { await featureOfFile(f); $("#prep").textContent = `사진 준비 중... ${++k} / ${all.length}`; }
+      $("#prep").textContent = `사진 ${all.length}장 준비 완료`;
+      $("#trainBtn").disabled = false;
+    } catch (e) {
+      console.error(e); loader.hide();
+      err.show("사진이나 모델을 불러오지 못했어요: " + (e.message || e));
+    }
+  }
+
+  // 학습 = 종류마다 학습 사진 특징값의 평균(대표 모습)을 구하는 것
+  // 시험 = 새 사진이 어느 종류의 대표 모습과 가장 비슷한지 비교
+  function classify(feat) {
+    const scores = trained.map((c) => { let s = 0; for (let k = 0; k < feat.length; k++) s += c.center[k] * feat[k]; return s; });
+    const mx = Math.max(...scores), ex = scores.map((s) => Math.exp((s - mx) * 8)), sum = ex.reduce((a, b) => a + b, 0);
+    const probs = ex.map((e) => e / sum);
+    return { probs, best: probs.indexOf(Math.max(...probs)) };
+  }
+  function centerOf(feats) {
+    const c = new Float32Array(feats[0].length);
+    for (const f of feats) for (let k = 0; k < c.length; k++) c[k] += f[k];
+    let s = 0; for (const v of c) s += v * v; s = Math.sqrt(s) || 1;
+    return c.map((v) => v / s);
+  }
+
+  async function train() {
+    loader.show("학습하는 중");
+    await AI.sleep(300);
+    trained = await Promise.all(data.map(async (c) => ({ name: c.name, center: centerOf(await Promise.all(c.train.slice(0, nTrain).map(featureOfFile))) })));
+    let ok = 0, total = 0;
+    const cards = [];
+    for (const [ci, c] of data.entries()) {
+      for (const f of c.test) {
+        const { probs, best } = classify(await featureOfFile(f));
+        const right = best === ci; ok += right; total++;
+        cards.push(`<figure class="${right ? "" : "bad"}"><img src="${f.url}" alt=""><figcaption>${right ? "맞음" : "틀림"} : ${trained[best].name}<small>정답 ${c.name} · ${AI.pct(probs[best])}</small></figcaption></figure>`);
+      }
+    }
+    loader.hide();
+    $("#tests").innerHTML = cards.join("");
+    $("#score").innerHTML = `시험 점수 (종류마다 ${nTrain === 99 ? "전부" : nTrain + "장"} 학습)<b>${total}장 중 ${ok}장 · ${Math.round((ok / total) * 100)}%</b>`;
+    showMine();
+  }
+
+  function showMine() {
+    if (!mineFeat) return;
+    if (!trained) { $("#ans").textContent = "먼저 학습하기"; return; }
+    const { probs, best } = classify(mineFeat);
+    $("#ans").textContent = trained[best].name;
+    $("#bars").innerHTML = trained.map((c, i) => `<div class="it ${i === best ? "top" : ""}"><div class="name">${c.name}</div><div class="val">${AI.pct(probs[i])}</div><div class="track"><i style="width:${(probs[i] * 100).toFixed(1)}%"></i></div></div>`).join("");
+  }
+
+  AI.setupPicker({
+    drop: $("#drop"), maxSide: 800,
+    onImage: async (c) => {
+      const v = $("#mineView"); v.width = c.width; v.height = c.height; v.getContext("2d").drawImage(c, 0, 0); v.hidden = false;
+      mineFeat = await featureOf(c);
+      showMine();
+    },
+    onError: (m) => err.show(m),
+  });
+
+  AI.$$("#setSel button").forEach((b) => b.addEventListener("click", () => {
+    AI.$$("#setSel button").forEach((x) => x.classList.toggle("on", x === b));
+    setName = b.dataset.s; $("#ans").textContent = "-"; $("#bars").innerHTML = ""; prepare();
+  }));
+  AI.$$("#nSel button").forEach((b) => b.addEventListener("click", () => {
+    AI.$$("#nSel button").forEach((x) => x.classList.toggle("on", x === b));
+    nTrain = +b.dataset.n; drawClasses();
+    if (trained) train();
+  }));
+  $("#trainBtn").addEventListener("click", train);
+
+  try { SETS = await (await fetch(DIR + "sets.json")).json(); } catch (e) { err.show("데이터 목록을 불러오지 못했어요."); return; }
+  prepare();
+})();
+</script>
+</body>
+</html>

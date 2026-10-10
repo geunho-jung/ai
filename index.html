@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 체험</title>
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<main class="home">
+  <h1>AI 체험</h1>
+  <p class="lead">해 보고 싶은 주제를 누르세요.</p>
+  <div class="error" id="fileWarn">파일을 직접 열면 AI가 동작하지 않아요. 웹 주소(GitHub Pages 등)로 열어 주세요. 방법은 README.txt에 있어요.</div>
+  <div class="menu" id="menu"></div>
+</main>
+
+<script>
+  const TOPICS = [
+    { id: "detect", title: "사물 찾기", desc: "사진 속 사람, 자동차, 동물을 찾아 상자로 표시해요" },
+    { id: "cartoon", title: "사진을 만화로", desc: "사진을 만화 그림체로 바꿔요" },
+    { id: "colorize", title: "흑백 사진을 컬러로", desc: "흑백 사진에 AI가 색을 칠해요" },
+    { id: "landmarks", title: "얼굴·몸 점 찍기", desc: "얼굴의 점 478개와 몸의 관절을 찾아요" },
+    { id: "depth", title: "사진 속 거리 알아내기", desc: "사진 한 장에서 거리를 알아내 3D로 보여 줘요" },
+    { id: "upscale", title: "흐린 사진 선명하게", desc: "작고 흐린 사진을 4배로 선명하게 키워요" },
+    { id: "classify", title: "이건 무엇일까?", desc: "사진 속 물체를 맞히고, AI가 어디를 봤는지 보여 줘요" },
+    { id: "teach", title: "나만의 AI 만들기", desc: "준비된 사진 몇 장으로 AI를 학습시키고 시험 점수를 확인해요" },
+    { id: "mnist", title: "손글씨 숫자 AI 학습시키기", desc: "AI를 직접 학습시키고, 내가 쓴 숫자를 맞히게 해요" },
+  ];
+  // 주소 끝에 ?t=detect,cartoon 처럼 붙이면 그 주제만 보여 줌
+  const only = new URLSearchParams(location.search).get("t");
+  const list = only ? TOPICS.filter((t) => only.split(",").includes(t.id)) : TOPICS;
+  document.getElementById("menu").innerHTML = list.map((t) => `
+    <a href="${t.id}.html"><img src="assets/thumbs/${t.id}.jpg" alt=""><div class="txt"><h2>${t.title}</h2><p>${t.desc}</p></div></a>`).join("");
+  if (location.protocol === "file:") document.getElementById("fileWarn").classList.add("show");
+</script>
+</body>
+</html>

@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>사진 속 거리 알아내기</title>
+<link rel="stylesheet" href="assets/css/style.css">
+<style>
+  #gl { display: block; margin: 0 auto; border-radius: 8px; cursor: move; max-width: 100%; }
+  .legend { height: 8px; border-radius: 99px; background: linear-gradient(90deg, #000004, #420a68, #932667, #dd513a, #fca50a, #fcffa4); margin-top: 10px; }
+</style>
+</head>
+<body>
+<header class="top"><a class="back" href="index.html" title="처음으로">←</a><h1>사진 속 거리 알아내기</h1></header>
+
+<main class="page">
+  <aside class="side">
+    <section>
+      <h2>보기</h2>
+      <div class="tabs" id="mode">
+        <button class="on" data-m="map" type="button">거리 지도</button>
+        <button data-m="near" type="button">가까운 것만</button>
+        <button data-m="3d" type="button">3D 사진</button>
+      </div>
+      <div class="ctrl" id="nearCtrl" style="margin-top:12px" hidden>
+        <label>남길 거리 <b id="nearVal">40%</b></label>
+        <input type="range" id="near" min="5" max="95" step="5" value="40">
+        <div class="ends"><span>아주 가까운 것만</span><span>대부분</span></div>
+      </div>
+      <div class="ctrl" id="d3Ctrl" style="margin-top:12px" hidden>
+        <label>입체감 <b id="d3Val">1.0</b></label>
+        <input type="range" id="d3" min="0.2" max="2.5" step="0.1" value="1">
+        <p class="small" style="margin:6px 0 0">사진 위에서 마우스를 움직여 보세요.</p>
+      </div>
+    </section>
+    <section>
+      <h2>사진</h2>
+      <div id="picker"></div>
+    </section>
+    <section class="todo">
+      <h2>해 볼 것</h2>
+      <ol>
+        <li><span>기본</span>거리 지도에서 가장 가까운 곳과 먼 곳 찾기</li>
+        <li><span>응용</span>'가까운 것만'으로 앞에 있는 물체만 남기기</li>
+        <li><span>심화</span>그림, 거울, 사진 속 사진처럼 AI가 헷갈릴 만한 사진 넣어 보기</li>
+      </ol>
+    </section>
+  </aside>
+
+  <section class="main">
+    <div class="error" id="err"></div>
+    <div class="stage" id="stage">
+      <div class="status" id="status"></div>
+      <div class="empty" id="empty">예제 사진을 눌러 시작하세요</div>
+      <div id="out" hidden>
+        <div id="cmp"></div>
+        <canvas class="view" id="nearView" hidden></canvas>
+        <canvas id="gl" hidden></canvas>
+        <div id="legendBox" style="max-width:420px;margin:12px auto 0">
+          <div class="legend"></div>
+          <div class="small" style="display:flex;justify-content:space-between"><span>멀다</span><span>가깝다</span></div>
+        </div>
+      </div>
+    </div>
+    <p class="small" style="margin:10px 4px 0">AI는 사진 한 장만 보고 물체의 크기, 겹침, 원근 같은 단서로 거리를 추측해요. 실제 거리(미터)가 아니라 '어느 쪽이 더 가까운지'를 알려 줘요.</p>
+  </section>
+</main>
+
+<script src="lib/ort/ort.wasm.min.js"></script>
+<script src="assets/js/common.js"></script>
+<script>
+(async function () {
+  const MODEL = "models/depth_midas_small.onnx"; // MiDaS v2.1 small
+  const $ = AI.$;
+  $("#picker").innerHTML = AI.pickerHTML();
+  const err = AI.errorBox($("#err"));
+  const loader = AI.loader($("#stage"));
+  const cmp = AI.compare($("#cmp"));
+  let model = null, src = null, depth = null, depthCanvas = null, colorMap = null, mode = "map";
+
+  async function getModel() {
+    if (model) return model;
+    loader.show("AI 모델 불러오는 중", "17MB", 0);
+    model = await AI.loadModel(MODEL, (p) => loader.progress(p));
+    return model;
+  }
+
+  // 색 지도 (멀다: 검정 · 보라 → 가깝다: 주황 · 노랑)
+  const STOPS = [[0, 0, 4], [66, 10, 104], [147, 38, 103], [221, 81, 58], [252, 165, 10], [252, 255, 164]];
+  function inferno(t) {
+    t = Math.max(0, Math.min(1, t)) * (STOPS.length - 1);
+    const i = Math.min(STOPS.length - 2, Math.floor(t)), f = t - i;
+    return STOPS[i].map((v, k) => Math.round(v + (STOPS[i + 1][k] - v) * f));
+  }
+
+  async function run() {
+    if (!src) return;
+    err.hide();
+    try {
+      const m = await getModel();
+      const S = 256;
+      const sq = document.createElement("canvas"); sq.width = S; sq.height = S;
+      const sg = sq.getContext("2d", { willReadFrequently: true }); sg.imageSmoothingQuality = "high";
+      sg.drawImage(src, 0, 0, S, S);
+      const px = sg.getImageData(0, 0, S, S).data, n = S * S, x = new Float32Array(3 * n);
+      const mean = [0.485, 0.456, 0.406], std = [0.229, 0.224, 0.225];
+      for (let i = 0; i < n; i++) for (let k = 0; k < 3; k++) x[k * n + i] = (px[i * 4 + k] / 255 - mean[k]) / std[k];
+      loader.show("거리를 계산하는 중");
+      await AI.nextFrame();
+      const t0 = performance.now();
+      const feeds = {}; feeds[m.inputNames[0]] = new ort.Tensor("float32", x, [1, 3, S, S]);
+      const y = (await m.run(feeds))[m.outputNames[0]].data;
+      const ms = performance.now() - t0;
+      // 0(멀다) ~ 1(가깝다) 로 맞추기
+      let lo = Infinity, hi = -Infinity;
+      for (let i = 0; i < n; i++) { lo = Math.min(lo, y[i]); hi = Math.max(hi, y[i]); }
+      const d = document.createElement("canvas"); d.width = S; d.height = S;
+      const dg = d.getContext("2d"), di = dg.createImageData(S, S);
+      for (let i = 0; i < n; i++) { const v = Math.round(((y[i] - lo) / (hi - lo + 1e-9)) * 255); di.data.set([v, v, v, 255], i * 4); }
+      dg.putImageData(di, 0, 0);
+      // 원래 사진 크기로 늘리기
+      depthCanvas = document.createElement("canvas"); depthCanvas.width = src.width; depthCanvas.height = src.height;
+      const bg = depthCanvas.getContext("2d", { willReadFrequently: true }); bg.imageSmoothingQuality = "high";
+      bg.drawImage(d, 0, 0, src.width, src.height);
+      const bp = bg.getImageData(0, 0, src.width, src.height).data;
+      depth = new Float32Array(src.width * src.height);
+      colorMap = document.createElement("canvas"); colorMap.width = src.width; colorMap.height = src.height;
+      const cg = colorMap.getContext("2d"), ci = cg.createImageData(src.width, src.height);
+      for (let i = 0; i < depth.length; i++) { depth[i] = bp[i * 4] / 255; ci.data.set([...inferno(depth[i]), 255], i * 4); }
+      cg.putImageData(ci, 0, 0);
+      loader.hide();
+      $("#status").innerHTML = `<span class="pill">${Math.round(ms)}ms</span>`;
+      $("#empty").hidden = true; $("#out").hidden = false;
+      glReady = false;
+      render();
+    } catch (e) {
+      console.error(e); loader.hide();
+      err.show("실행 중 문제가 생겼어요: " + (e.message || e));
+    }
+  }
+
+  function render() {
+    if (!depth) return;
+    $("#cmp").hidden = mode !== "map";
+    $("#nearView").hidden = mode !== "near";
+    $("#gl").hidden = mode !== "3d";
+    $("#legendBox").hidden = mode !== "map";
+    $("#nearCtrl").hidden = mode !== "near";
+    $("#d3Ctrl").hidden = mode !== "3d";
+    if (mode === "map") cmp.set(src, colorMap, "사진", "거리 지도");
+    else if (mode === "near") drawNear();
+    else start3d();
+  }
+
+  // 가까운 곳만 남기고 나머지는 흐리고 어둡게
+  function drawNear() {
+    const th = 1 - +$("#near").value / 100, w = src.width, h = src.height;
+    const v = $("#nearView"); v.width = w; v.height = h;
+    const g = v.getContext("2d");
+    g.filter = "grayscale(1) brightness(0.45) blur(2px)";
+    g.drawImage(src, 0, 0); g.filter = "none";
+    const fg = AI.copyCanvas(src), fgc = fg.getContext("2d"), im = fgc.getImageData(0, 0, w, h);
+    for (let i = 0; i < depth.length; i++) if (depth[i] < th) im.data[i * 4 + 3] = 0;
+    fgc.putImageData(im, 0, 0);
+    g.drawImage(fg, 0, 0);
+  }
+
+  /* 3D 사진 : 가까운 곳은 많이, 먼 곳은 조금 움직여서 입체처럼 보이게 (WebGL) */
+  let gl = null, prog = null, glReady = false, mouse = [0, 0], auto = true, raf = 0;
+  function start3d() {
+    const c = $("#gl");
+    const avail = $("#stage").clientWidth - 34, vh = window.innerHeight * 0.66;
+    const k = Math.min(avail / src.width, vh / src.height);
+    c.width = Math.round(src.width * k); c.height = Math.round(src.height * k);
+    if (!gl) {
+      gl = c.getContext("webgl");
+      if (!gl) { err.show("이 컴퓨터에서는 3D 보기를 쓸 수 없어요 (WebGL 없음)."); return; }
+      const vs = `attribute vec2 p; varying vec2 uv; void main(){ uv = p * 0.5 + 0.5; uv.y = 1.0 - uv.y; gl_Position = vec4(p, 0.0, 1.0); }`;
+      const fs = `precision mediump float; varying vec2 uv; uniform sampler2D img; uniform sampler2D dep; uniform vec2 off;
+        void main(){ float d = texture2D(dep, uv).r; vec2 q = uv + off * (d - 0.5); gl_FragColor = texture2D(img, clamp(q, 0.0, 1.0)); }`;
+      const sh = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); return o; };
+      prog = gl.createProgram();
+      gl.attachShader(prog, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, fs));
+      gl.linkProgram(prog); gl.useProgram(prog);
+      const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+      const loc = gl.getAttribLocation(prog, "p"); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+      c.addEventListener("pointermove", (e) => { const r = c.getBoundingClientRect(); mouse = [(e.clientX - r.left) / r.width - 0.5, (e.clientY - r.top) / r.height - 0.5]; auto = false; });
+      c.addEventListener("pointerleave", () => (auto = true));
+    }
+    if (!glReady) {
+      const tex = (unit, canvas, name) => {
+        const t = gl.createTexture(); gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.uniform1i(gl.getUniformLocation(prog, name), unit);
+      };
+      tex(0, src, "img"); tex(1, depthCanvas, "dep");
+      glReady = true;
+    }
+    gl.viewport(0, 0, c.width, c.height);
+    cancelAnimationFrame(raf);
+    const t0 = performance.now();
+    const frame = () => {
+      if (mode !== "3d") return;
+      const s = 0.035 * +$("#d3").value;
+      const t = (performance.now() - t0) / 1000;
+      const o = auto ? [Math.sin(t * 1.6) * 0.5, Math.cos(t * 1.1) * 0.25] : mouse;
+      gl.uniform2f(gl.getUniformLocation(prog, "off"), -o[0] * s * 2, -o[1] * s * 2);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      raf = requestAnimationFrame(frame);
+    };
+    frame();
+  }
+
+  AI.$$("#mode button").forEach((b) => b.addEventListener("click", () => {
+    AI.$$("#mode button").forEach((x) => x.classList.toggle("on", x === b));
+    mode = b.dataset.m; render();
+  }));
+  $("#near").addEventListener("input", () => { $("#nearVal").textContent = $("#near").value + "%"; drawNear(); });
+  $("#d3").addEventListener("input", () => ($("#d3Val").textContent = (+$("#d3").value).toFixed(1)));
+  window.addEventListener("resize", () => depth && render());
+
+  AI.setupPicker({
+    drop: $("#drop"), samplesEl: $("#samples"), maxSide: 1024,
+    samples: [
+      { src: "assets/samples/coffee.jpg", label: "커피잔" },
+      { src: "assets/samples/astronaut.jpg", label: "우주비행사" },
+      { src: "assets/samples/bus.jpg", label: "거리" },
+      { src: "assets/samples/old_bw.jpg", label: "풍경" },
+    ],
+    onImage: async (c) => { src = c; await run(); },
+    onError: (m) => err.show(m),
+  });
+})();
+</script>
+</body>
+</html>

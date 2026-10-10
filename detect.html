@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>사물 찾기</title>
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<header class="top"><a class="back" href="index.html" title="처음으로">←</a><h1>사물 찾기</h1></header>
+
+<main class="page">
+  <aside class="side">
+    <section>
+      <h2>사진</h2>
+      <div id="picker"></div>
+    </section>
+    <section>
+      <h2>조절</h2>
+      <div class="ctrl">
+        <label>신뢰도 기준값 <b id="confVal">0.25</b></label>
+        <input type="range" id="conf" min="0.05" max="0.95" step="0.05" value="0.25">
+        <div class="ends"><span>많이 찾음</span><span>확실한 것만</span></div>
+      </div>
+      <div class="ctrl">
+        <label>밝기 <b id="brightVal">100%</b></label>
+        <input type="range" id="bright" min="0.02" max="1" step="0.02" value="1">
+      </div>
+      <div class="ctrl">
+        <label>흐림 <b id="blurVal">0</b></label>
+        <input type="range" id="blur" min="0" max="20" step="1" value="0">
+      </div>
+      <div class="ctrl">
+        <label>겹침 기준값 <b id="iouVal">0.70</b></label>
+        <input type="range" id="iou" min="0.1" max="1" step="0.05" value="0.7">
+        <div class="ends"><span>겹친 상자 많이 지움</span><span>안 지움</span></div>
+      </div>
+    </section>
+    <section class="todo">
+      <h2>해 볼 것</h2>
+      <ol>
+        <li><span>기본</span>예제 사진에서 AI가 찾은 물체 확인하기</li>
+        <li><span>응용</span>물체가 5개 이상 찾아지는 사진 넣어 보기</li>
+        <li><span>심화</span>AI가 틀리게 찾는 사진 찾기 (어둡게 · 흐리게도 해 보기)</li>
+      </ol>
+    </section>
+  </aside>
+
+  <section class="main">
+    <div class="error" id="err"></div>
+    <div class="stage" id="stage">
+      <div class="status" id="status"></div>
+      <div class="empty" id="empty">예제 사진을 눌러 시작하세요</div>
+      <canvas class="view" id="view" hidden></canvas>
+    </div>
+    <div class="card" id="listPanel" hidden>
+      <h3>찾은 물체</h3>
+      <table class="list"><thead><tr><th>번호</th><th>물체</th><th>신뢰도</th><th>상자 크기</th></tr></thead><tbody id="list"></tbody></table>
+      <p class="small" style="margin:10px 0 0">AI는 사람, 자동차, 개, 컵, 의자 등 80종류만 알아요.</p>
+    </div>
+  </section>
+</main>
+
+<script src="lib/ort/ort.wasm.min.js"></script>
+<script src="assets/js/common.js"></script>
+<script src="assets/js/labels-ko.js"></script>
+<script src="assets/js/yolo.js"></script>
+<script>
+(async function () {
+  const MODEL = "models/yolo11n.onnx";
+  const $ = AI.$;
+  $("#picker").innerHTML = AI.pickerHTML();
+  const err = AI.errorBox($("#err"));
+  const loader = AI.loader($("#stage"));
+  const view = $("#view"), ctx = view.getContext("2d");
+  let src = null, adjusted = null, result = null, model = null;
+  const S = { conf: () => +$("#conf").value, iou: () => +$("#iou").value, bright: () => +$("#bright").value, blur: () => +$("#blur").value };
+
+  async function getModel() {
+    if (model) return model;
+    loader.show("AI 모델 불러오는 중", "11MB", 0);
+    model = await AI.loadModel(MODEL, (p) => loader.progress(p));
+    return model;
+  }
+  const adjust = (c) => (S.bright() !== 1 || S.blur() > 0 ? AI.adjust(c, { bright: S.bright(), blur: S.blur() }) : c);
+
+  async function run() {
+    if (!src) return;
+    err.hide();
+    try {
+      const m = await getModel();
+      loader.show("물체를 찾는 중");
+      await AI.nextFrame();
+      adjusted = adjust(src);
+      result = await YOLO.detect(m, adjusted, { size: 640 });
+      loader.hide();
+      draw();
+    } catch (e) {
+      console.error(e); loader.hide();
+      err.show("실행 중 문제가 생겼어요: " + (e.message || e));
+    }
+  }
+
+  function draw() {
+    if (!result) return;
+    const dets = YOLO.nms(result.cands, S.conf(), S.iou());
+    view.width = adjusted.width; view.height = adjusted.height;
+    ctx.drawImage(adjusted, 0, 0);
+    dets.forEach((d) => AI.drawBox(ctx, d.x1, d.y1, d.x2, d.y2, AI.color(d.cls)));
+    dets.forEach((d) => AI.drawTag(ctx, d.x1, d.y1, `${COCO_KO[d.cls]} ${Math.round(d.score * 100)}%`, AI.color(d.cls)));
+    $("#empty").hidden = true; view.hidden = false;
+    const counts = {};
+    dets.forEach((d) => (counts[COCO_KO[d.cls]] = (counts[COCO_KO[d.cls]] || 0) + 1));
+    $("#status").innerHTML = `<span class="pill accent">찾은 물체 ${dets.length}개</span>` +
+      Object.entries(counts).map(([k, v]) => `<span class="pill">${k} ${v}</span>`).join("");
+    $("#listPanel").hidden = false;
+    $("#list").innerHTML = dets.map((d, i) =>
+      `<tr><td>${i + 1}</td><td><span style="color:${AI.color(d.cls)}">●</span> ${COCO_KO[d.cls]} <span class="small">${COCO_EN[d.cls]}</span></td><td>${AI.pct(d.score)}</td><td>${Math.round(d.x2 - d.x1)} × ${Math.round(d.y2 - d.y1)}</td></tr>`
+    ).join("") || `<tr><td colspan="4" class="small">찾은 물체가 없어요. 신뢰도 기준값을 낮춰 보세요.</td></tr>`;
+  }
+
+  AI.setupPicker({
+    drop: $("#drop"), samplesEl: $("#samples"), maxSide: 1280,
+    samples: [
+      { src: "assets/samples/bus.jpg", label: "거리와 버스" },
+      { src: "assets/samples/dog.jpg", label: "강아지" },
+      { src: "assets/samples/cat.jpg", label: "고양이" },
+      { src: "assets/samples/coffee.jpg", label: "커피잔" },
+    ],
+    onImage: async (c) => { src = c; await run(); },
+    onError: (m) => err.show(m),
+  });
+
+  const label = () => {
+    $("#confVal").textContent = S.conf().toFixed(2);
+    $("#iouVal").textContent = S.iou().toFixed(2);
+    $("#brightVal").textContent = Math.round(S.bright() * 100) + "%";
+    $("#blurVal").textContent = S.blur();
+  };
+  for (const id of ["#conf", "#iou"]) $(id).addEventListener("input", () => { label(); draw(); });
+  let t = null;
+  for (const id of ["#bright", "#blur"]) $(id).addEventListener("input", () => { label(); clearTimeout(t); t = setTimeout(run, 250); });
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이건 무엇일까?</title>
+<link rel="stylesheet" href="assets/css/style.css">
+<style>
+  .split { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+  @media (max-width: 1100px) { .split { grid-template-columns: 1fr; } }
+  .split canvas { display: block; max-height: 56vh; border-radius: 8px; margin: 0 auto; }
+  .answer { font-size: 14px; color: var(--muted); }
+  .answer b { display: block; font-size: 28px; color: var(--text); letter-spacing: -0.5px; line-height: 1.3; }
+  .heat { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 14px; }
+  .heat figure { margin: 0; } .heat figcaption { font-size: 13.5px; color: var(--muted); margin-bottom: 6px; }
+  .heat canvas { width: 100%; height: auto; border-radius: 8px; display: block; }
+  .legend { height: 8px; border-radius: 99px; background: linear-gradient(90deg, #00008f, #0050ff, #00dfff, #70ff8f, #ffe000, #ff5000, #8f0000); margin-top: 8px; }
+</style>
+</head>
+<body>
+<header class="top"><a class="back" href="index.html" title="처음으로">←</a><h1>이건 무엇일까?</h1></header>
+
+<main class="page">
+  <aside class="side">
+    <section>
+      <h2>사진</h2>
+      <div id="picker"></div>
+      <p class="small" style="margin:10px 0 0">AI는 동물 · 음식 · 물건 등 1000종류를 알아요. '사람'이라는 종류는 없어요.</p>
+    </section>
+    <section>
+      <h2>사진 바꿔 보기</h2>
+      <div class="ctrl"><label>밝기 <b id="brightVal">100%</b></label><input type="range" id="bright" min="0.04" max="1" step="0.02" value="1"></div>
+      <div class="ctrl"><label>흐림 <b id="blurVal">0</b></label><input type="range" id="blur" min="0" max="24" step="1" value="0"></div>
+      <div class="ctrl"><label>회전 <b id="rotVal">0°</b></label><input type="range" id="rot" min="0" max="180" step="10" value="0"></div>
+      <button class="btn ghost" id="reset" type="button" style="margin-top:12px">원래대로</button>
+    </section>
+    <section class="todo">
+      <h2>해 볼 것</h2>
+      <ol>
+        <li><span>기본</span>AI의 1등 답과 확률 확인하기</li>
+        <li><span>응용</span>어둡게 · 흐리게 · 돌려서 1등 답이 바뀌는 지점 찾기</li>
+        <li><span>심화</span>'AI가 본 곳'으로 AI가 정말 물체를 보고 판단했는지 확인하기</li>
+      </ol>
+    </section>
+  </aside>
+
+  <section class="main">
+    <div class="error" id="err"></div>
+    <div class="stage" id="stage">
+      <div class="empty" id="empty">예제 사진을 눌러 시작하세요</div>
+      <div class="split" id="result" hidden>
+        <canvas id="view"></canvas>
+        <div>
+          <div class="answer">AI의 대답<b id="top1"></b></div>
+          <p class="small" id="meta" style="margin:0 0 14px"></p>
+          <div class="bars" id="bars"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="heatPanel" hidden>
+      <div class="row" style="justify-content:space-between">
+        <h3 style="margin:0">AI는 어디를 봤을까?</h3>
+        <div class="row">
+          <label class="check" style="margin:0"><input type="checkbox" id="fine"> 자세히</label>
+          <button class="btn" id="heatBtn" type="button">AI가 본 곳 보기</button>
+        </div>
+      </div>
+      <p class="small" style="margin:6px 0 0">사진을 조각조각 가려 보면서, 가렸을 때 1등 답의 확률이 크게 떨어지는 곳을 빨갛게 표시해요.</p>
+      <div class="heat" id="heat" hidden>
+        <figure><figcaption>AI에 들어가는 사진 (224×224)</figcaption><canvas id="input"></canvas></figure>
+        <figure><figcaption id="heatCap"></figcaption><canvas id="heatmap"></canvas><div class="legend"></div>
+          <div class="small" style="display:flex;justify-content:space-between"><span>가려도 그대로</span><span>확률이 크게 떨어짐</span></div></figure>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="lib/ort/ort.wasm.min.js"></script>
+<script src="assets/js/common.js"></script>
+<script src="assets/js/labels-ko.js"></script>
+<script src="assets/js/yolo.js"></script>
+<script>
+(async function () {
+  const MODEL = "models/yolo11n-cls.onnx";
+  const $ = AI.$;
+  $("#picker").innerHTML = AI.pickerHTML();
+  const err = AI.errorBox($("#err"));
+  const loader = AI.loader($("#stage"));
+  let model = null, src = null, cur = null, top = [];
+
+  async function getModel() {
+    if (model) return model;
+    loader.show("AI 모델 불러오는 중", "11MB", 0);
+    model = await AI.loadModel(MODEL, (p) => loader.progress(p));
+    return model;
+  }
+  const opts = () => ({ bright: +$("#bright").value, blur: +$("#blur").value, rotate: +$("#rot").value });
+
+  async function run() {
+    if (!src) return;
+    err.hide();
+    try {
+      const m = await getModel();
+      loader.hide();
+      const o = opts();
+      cur = o.bright !== 1 || o.blur > 0 || o.rotate ? AI.adjust(src, o) : src;
+      const t0 = performance.now();
+      const probs = Array.from(await YOLO.classifyData(m, YOLO.toTensorData(YOLO.classifyInput(cur))));
+      const ms = performance.now() - t0;
+      top = probs.map((p, i) => [p, i]).sort((a, b) => b[0] - a[0]).slice(0, 5);
+      const v = $("#view"); v.width = cur.width; v.height = cur.height;
+      v.getContext("2d").drawImage(cur, 0, 0);
+      $("#top1").textContent = IMAGENET_KO[top[0][1]];
+      $("#meta").textContent = `${IMAGENET_EN[top[0][1]]} · ${AI.pct(top[0][0], 1)} · ${Math.round(ms)}ms`;
+      $("#bars").innerHTML = top.map(([p, i], k) => `
+        <div class="it ${k === 0 ? "top" : ""}"><div class="name">${k + 1}. ${IMAGENET_KO[i]}<small>${IMAGENET_EN[i]}</small></div>
+        <div class="val">${AI.pct(p, 1)}</div><div class="track"><i style="width:${(p * 100).toFixed(1)}%"></i></div></div>`).join("");
+      $("#empty").hidden = true; $("#result").hidden = false;
+      $("#heatPanel").hidden = false; $("#heat").hidden = true;
+      $("#heatBtn").textContent = "AI가 본 곳 보기";
+    } catch (e) {
+      console.error(e); loader.hide();
+      err.show("실행 중 문제가 생겼어요: " + (e.message || e));
+    }
+  }
+
+  // 색 지도 (파랑 → 빨강)
+  function jet(t) {
+    t = Math.max(0, Math.min(1, t));
+    const f = (k) => Math.max(0, Math.min(1, 1.5 - Math.abs(4 * t - k))) * 255;
+    return [f(3), f(2), f(1)];
+  }
+
+  $("#heatBtn").addEventListener("click", async () => {
+    if (!cur) return;
+    const m = await getModel();
+    const S = 224, n = $("#fine").checked ? 14 : 7, P = S / n;
+    const inp = YOLO.classifyInput(cur);
+    const base = YOLO.toTensorData(inp);
+    const target = top[0][1], baseP = top[0][0];
+    const heat = new Float32Array(n * n);
+    const btn = $("#heatBtn");
+    btn.disabled = true;
+    for (let r = 0; r < n; r++) {
+      for (let c = 0; c < n; c++) {
+        const x = base.slice();
+        for (let ch = 0; ch < 3; ch++)
+          for (let y = r * P; y < (r + 1) * P; y++)
+            for (let xx = c * P; xx < (c + 1) * P; xx++) x[ch * S * S + y * S + xx] = 0.5; // 회색으로 가리기
+        heat[r * n + c] = Math.max(0, baseP - (await YOLO.classifyData(m, x))[target]);
+      }
+      btn.textContent = `가려 보는 중 ${Math.round(((r + 1) / n) * 100)}%`;
+      await AI.nextFrame();
+    }
+    btn.disabled = false;
+    btn.textContent = "다시 보기";
+    const D = 448;
+    const ic = $("#input"); ic.width = D; ic.height = D;
+    ic.getContext("2d").drawImage(inp, 0, 0, D, D);
+    const small = document.createElement("canvas"); small.width = n; small.height = n;
+    const sg = small.getContext("2d"), im = sg.createImageData(n, n);
+    const mx = Math.max(1e-6, ...heat);
+    for (let i = 0; i < n * n; i++) { const [r, g, b] = jet(heat[i] / mx); im.data.set([r, g, b, 255], i * 4); }
+    sg.putImageData(im, 0, 0);
+    const hc = $("#heatmap"); hc.width = D; hc.height = D;
+    const hg = hc.getContext("2d");
+    hg.drawImage(inp, 0, 0, D, D);
+    hg.globalAlpha = 0.5;
+    hg.drawImage(small, 0, 0, D, D);
+    hg.globalAlpha = 1;
+    $("#heatCap").textContent = `'${IMAGENET_KO[target]}' 확률이 떨어진 정도 (최대 −${(mx * 100).toFixed(0)}%p)`;
+    $("#heat").hidden = false;
+  });
+
+  const label = () => {
+    $("#brightVal").textContent = Math.round(+$("#bright").value * 100) + "%";
+    $("#blurVal").textContent = $("#blur").value;
+    $("#rotVal").textContent = $("#rot").value + "°";
+  };
+  let t = null;
+  for (const id of ["#bright", "#blur", "#rot"]) $(id).addEventListener("input", () => { label(); clearTimeout(t); t = setTimeout(run, 120); });
+  $("#reset").addEventListener("click", () => { $("#bright").value = 1; $("#blur").value = 0; $("#rot").value = 0; label(); run(); });
+
+  AI.setupPicker({
+    drop: $("#drop"), samplesEl: $("#samples"), maxSide: 1024,
+    samples: [
+      { src: "assets/samples/dog.jpg", label: "강아지" },
+      { src: "assets/samples/cat.jpg", label: "고양이" },
+      { src: "assets/samples/coffee.jpg", label: "커피잔" },
+      { src: "assets/samples/rocket.jpg", label: "로켓" },
+    ],
+    onImage: async (c) => { src = c; await run(); },
+    onError: (m) => err.show(m),
+  });
+})();
+</script>
+</body>
+</html>
